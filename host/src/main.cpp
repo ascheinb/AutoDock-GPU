@@ -47,31 +47,33 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 int main(int argc, char* argv[])
 {
-    Kokkos::initialize();
-    int err = 0;
-    for (int i_test=0;i_test<3;i_test++){
-	#pragma omp parallel
-	{
-	int thread_id = omp_get_thread_num();
-	if (thread_id==0)
-	{
-	Gridinfo	 mygrid;
-	Liganddata myligand_init;
-	Dockpars   mypars;
-	FILE*      fp;
-	char report_file_name [256];
+  Kokkos::initialize();
+  int err = 0;
 
-	clock_t clock_start_program;
+  Dockpars   mypars;
+  Liganddata myligand_init;
+  Gridinfo   mygrid;
+  Liganddata myxrayligand;
+  Kokkos::View<float*,HostType> floatgrids("floatgrids", 0);
+  char report_file_name[256];
+  FILE* fp;
+  clock_t clock_start_program;
+  for (int i_test=0;i_test<3;i_test++){
+#ifndef _WIN32
+    // ------------------------
+    // Time measurement
+    double num_sec, num_usec, elapsed_sec;
+    timeval time_start,time_end;
+    gettimeofday(&time_start,NULL);
+    // ------------------------
+#endif
+    #pragma omp parallel
+    {
+      int thread_id = omp_get_thread_num();
+      if (thread_id==0)
+      {
 	clock_start_program = clock();
 
-#ifndef _WIN32
-	// ------------------------
-	// Time measurement
-	double num_sec, num_usec, elapsed_sec;
-	timeval time_start,time_end;
-	gettimeofday(&time_start,NULL);
-	// ------------------------
-#endif
 	//------------------------------------------------------------
 	// Capturing names of grid parameter file and ligand pdbqt file
 	//------------------------------------------------------------
@@ -117,8 +119,8 @@ int main(int argc, char* argv[])
 	if (get_liganddata(mypars.ligandfile, &myligand_init, mypars.coeffs.AD4_coeff_vdW, mypars.coeffs.AD4_coeff_hb) != 0)
 		{printf("\n\nError in get_liganddata, stopped job."); err = 1;}
 
-	// Allocate grid
-	Kokkos::View<float*,HostType> floatgrids(  "floatgrids", 4*(mygrid.num_of_atypes+2)*mygrid.size_xyz[0]*mygrid.size_xyz[1]*mygrid.size_xyz[2]);
+	// Resize grid
+	Kokkos::resize(floatgrids, 4*(mygrid.num_of_atypes+2)*mygrid.size_xyz[0]*mygrid.size_xyz[1]*mygrid.size_xyz[2]);
 
 	//Reading the grid files and storing values in the memory region pointed by floatgrids
 	if (get_gridvalues_f(&mygrid, floatgrids.data(), mypars.cgmaps) != 0)
@@ -131,10 +133,11 @@ int main(int argc, char* argv[])
 
 	// Temporary test: add loop# to resname - ALS
 	char it_char[1];
-	it_char[0]='3'+i_test;
+	if (i_test==0) it_char[0]='0';
+        if (i_test==1) it_char[0]='1';
+        if (i_test==2) it_char[0]='2';
 	strcat(mypars.resname, it_char);
 
-	Liganddata myxrayligand;
 	Gridinfo   mydummygrid;
 	// if -lxrayfile provided, then read xray ligand data
 	if (mypars.given_xrayligandfile == true) {
@@ -158,6 +161,9 @@ int main(int argc, char* argv[])
 					 mypars.qasp);
 	}
 
+      }
+      #pragma omp barrier
+      if (thread_id==1) {
 	//------------------------------------------------------------
 	// Starting Docking
 	//------------------------------------------------------------
@@ -167,31 +173,31 @@ int main(int argc, char* argv[])
 	if (docking_with_gpu(&mygrid, floatgrids, &mypars, &myligand_init, &myxrayligand, &argc, argv, clock_start_program) != 0)
 		{printf("\n\nError in docking_with_gpu, stopped job."); err = 1;}
 
+      }
+    } // End of openmp parallel region
+
 #ifndef _WIN32
-	// ------------------------
-	// Time measurement
-	gettimeofday(&time_end,NULL);
-	num_sec     = time_end.tv_sec  - time_start.tv_sec;
-	num_usec    = time_end.tv_usec - time_start.tv_usec;
-	elapsed_sec = num_sec + (num_usec/1000000);
-	printf("Program run time %.3f sec \n\n", elapsed_sec);
+    // ------------------------
+    // Time measurement
+    gettimeofday(&time_end,NULL);
+    num_sec     = time_end.tv_sec  - time_start.tv_sec;
+    num_usec    = time_end.tv_usec - time_start.tv_usec;
+    elapsed_sec = num_sec + (num_usec/1000000);
+    printf("Program run time %.3f sec \n\n", elapsed_sec);
 
-        // Append time information to .dlg file
-	strcpy(report_file_name, mypars.resname);
-	strcat(report_file_name, ".dlg");
-	fp = fopen(report_file_name, "a");
-	fprintf(fp, "\n\n\nProgram run time %.3f sec\n", elapsed_sec);
-	fclose(fp);
-	//// ------------------------
+    // Append time information to .dlg file
+    strcpy(report_file_name, mypars.resname);
+    strcat(report_file_name, ".dlg");
+    fp = fopen(report_file_name, "a");
+    fprintf(fp, "\n\n\nProgram run time %.3f sec\n", elapsed_sec);
+    fclose(fp);
+    //// ------------------------
 #endif
-    } else {
-        printf("\nThread #%d is relaxing!\n", thread_id);
-    }
-    }
+        
     if (err==1) return 1;
-    }
+  }
 
-    Kokkos::finalize();
+  Kokkos::finalize();
 
-    return 0;
+  return 0;
 }
