@@ -527,7 +527,7 @@ void cluster_analysis(Ligandresult myresults [], int num_of_runs, char* report_f
 
 void clusanal_gendlg(Ligandresult myresults [], int num_of_runs, const Liganddata* ligand_ref,
 					 const Dockpars* mypars, const Gridinfo* mygrid, const int* argc, char** argv, const double docking_avg_runtime,
-					 const double program_runtime, unsigned long generations_used, unsigned long evals_performed)
+					 unsigned long generations_used, unsigned long evals_performed)
 //The function performs ranked cluster analisys similar to that of AutoDock and creates a file with report_file_name name, the result
 //will be written to it.
 {

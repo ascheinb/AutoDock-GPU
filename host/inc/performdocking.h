@@ -66,8 +66,7 @@ int docking_with_gpu(const Gridinfo*		mygrid,
 		     const Liganddata*		myligand_init,
 		     const Liganddata*		myxrayligand,
 		     const int*			argc,
-		     char**			argv,
-			   clock_t		clock_start_program);
+		     char**			argv);
 
 double check_progress(int* evals_of_runs,
 		      int generation_cnt,

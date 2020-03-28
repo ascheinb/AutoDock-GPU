@@ -57,8 +57,7 @@ int docking_with_gpu(const Gridinfo*		mygrid,
 		     const Liganddata*		myligand_init,
 		     const Liganddata*		myxrayligand,
 		     const int*			argc,
-			   char**		argv,
-			   clock_t		clock_start_program)
+			   char**		argv)
 /* The function performs the docking algorithm and generates the corresponding result files.
 parameter mygrid:
 		describes the grid
@@ -76,9 +75,7 @@ parameter myxrayligand:
 		describes the xray ligand
 		filled with get_xrayliganddata()
 parameters argc and argv:
-		are the corresponding command line arguments parameter clock_start_program:
-		contains the state of the clock tick counter at the beginning of the program
-filled with clock() */
+		are the corresponding command line arguments parameter */
 {
 	//------------------------------- SETUP --------------------------------------//
 
@@ -295,7 +292,7 @@ filled with clock() */
 	clock_t clock_stop_program_before_clustering = clock();
 	clusanal_gendlg(cpu_result_ligands.data(), mypars->num_of_runs, myligand_init, mypars,
 					 mygrid, argc, argv, ELAPSEDSECS(clock_stop_docking, clock_start_docking)/mypars->num_of_runs,
-					 ELAPSEDSECS(clock_stop_program_before_clustering, clock_start_program),generation_cnt,total_evals/mypars->num_of_runs);
+					 generation_cnt,total_evals/mypars->num_of_runs);
 	clock_stop_docking = clock();
 
 	return 0;

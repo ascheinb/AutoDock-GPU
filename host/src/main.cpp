@@ -47,9 +47,16 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 int main(int argc, char* argv[])
 {
-  int n_files = 4; // For now, just a loop index
   Kokkos::initialize();
+
+  int n_files = 4; // For now, just a loop index
   int err = 0;
+#ifndef _WIN32
+  // Start full timer
+  timeval time_start,time_end, file_time_start,file_time_end;
+  gettimeofday(&time_start,NULL);
+  double num_sec, num_usec, elapsed_sec;
+#endif
 
   // Objects that are arguments of docking_with_gpu
   // These must each have 2
@@ -64,18 +71,9 @@ int main(int argc, char* argv[])
     int s_id = i_test % 2;    // Alternate which set is undergoing setup (s_id)
     int r_id = (i_test+1) %2; // and which is being used in the run (r_id)
 
-    clock_t clock_start_program = clock(); // needs fix? - ALS
-
-    // Other objects
-    char report_file_name[256]; // needs fix? - ALS 
-    FILE* fp;
 #ifndef _WIN32
-    // ------------------------
-    // Time measurement
-    double num_sec, num_usec, elapsed_sec; // needs fix? - ALS
-    timeval time_start,time_end;
-    gettimeofday(&time_start,NULL);
-    // ------------------------
+    // Time measurement: start of loop
+    gettimeofday(&file_time_start,NULL);
 #endif
     // Branch into two threads
     // Thread 0 reads files and prepares the inputs to docking_with_gpu
@@ -159,6 +157,7 @@ int main(int argc, char* argv[])
 	if (i_test==0) it_char[0]='0';
         if (i_test==1) it_char[0]='1';
         if (i_test==2) it_char[0]='2';
+	if (i_test==3) it_char[0]='3';
 	strcat(mypars[s_id].resname, it_char);
 
 	Gridinfo   mydummygrid;
@@ -198,10 +197,10 @@ int main(int argc, char* argv[])
 	printf("\nAutoDock-GPU version: %s\n", VERSION);
 
 	if (r_id==0){
-		if (docking_with_gpu(&(mygrid[r_id]), floatgrids0, &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), &argc, argv, clock_start_program) != 0)
+		if (docking_with_gpu(&(mygrid[r_id]), floatgrids0, &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), &argc, argv) != 0)
 			{printf("\n\nError in docking_with_gpu, stopped job."); err = 1;}
 	} else {
-                if (docking_with_gpu(&(mygrid[r_id]), floatgrids1, &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), &argc, argv, clock_start_program) != 0)
+                if (docking_with_gpu(&(mygrid[r_id]), floatgrids1, &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), &argc, argv) != 0)
                         {printf("\n\nError in docking_with_gpu, stopped job."); err = 1;}
 	}
 
@@ -210,24 +209,38 @@ int main(int argc, char* argv[])
 
 #ifndef _WIN32
     // ------------------------
-    // Time measurement
-    gettimeofday(&time_end,NULL);
-    num_sec     = time_end.tv_sec  - time_start.tv_sec;
-    num_usec    = time_end.tv_usec - time_start.tv_usec;
+    // Time measurement of this loop
+    gettimeofday(&file_time_end,NULL);
+    num_sec     = file_time_end.tv_sec  - file_time_start.tv_sec;
+    num_usec    = file_time_end.tv_usec - file_time_start.tv_usec;
     elapsed_sec = num_sec + (num_usec/1000000);
-    printf("Program run time %.3f sec \n\n", elapsed_sec);
+    printf("Loop run time %.3f sec \n\n", elapsed_sec);
 
-    // Append time information to .dlg file
-    strcpy(report_file_name, mypars[s_id].resname); // which one? - ALS
-    strcat(report_file_name, ".dlg");
-    fp = fopen(report_file_name, "a");
-    fprintf(fp, "\n\n\nProgram run time %.3f sec\n", elapsed_sec);
-    fclose(fp);
-    //// ------------------------
+    if (i_test>0){
+      // Append time information to .dlg file
+      char report_file_name[256];
+      strcpy(report_file_name, mypars[r_id].resname);
+      strcat(report_file_name, ".dlg");
+      FILE* fp;
+      fp = fopen(report_file_name, "a");
+      fprintf(fp, "\n\n\nFile run time %.3f sec\n", elapsed_sec);
+      fclose(fp);
+    }
 #endif
         
     if (err==1) return 1;
   }
+
+#ifndef _WIN32
+  // Total time measurement
+  gettimeofday(&time_end,NULL);
+  num_sec     = time_end.tv_sec  - time_start.tv_sec;
+  num_usec    = time_end.tv_usec - time_start.tv_usec;
+  elapsed_sec = num_sec + (num_usec/1000000);
+  printf("\nRun time of all %d files together: %.3f sec \n\n", n_files, elapsed_sec);
+
+  //// ------------------------
+#endif
 
   Kokkos::finalize();
 
