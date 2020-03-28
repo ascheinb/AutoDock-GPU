@@ -30,7 +30,7 @@ struct DockingParams
         unsigned int    max_num_of_iters;
 
 	// Constructor
-	DockingParams(const Liganddata& myligand_reference, const Gridinfo* mygrid, const Dockpars* mypars, float* cpu_floatgrids )
+	DockingParams(const Liganddata& myligand_reference, const Gridinfo* mygrid, const Dockpars* mypars)
 		: fgrids("fgrids", 4 * (mygrid->num_of_atypes+2) * (mygrid->size_xyz[0]) * (mygrid->size_xyz[1]) * (mygrid->size_xyz[2])),
 		  evals_of_new_entities("evals_of_new_entities", mypars->pop_size * mypars->num_of_runs),
 		  prng_states("prng_states",mypars->pop_size * mypars->num_of_runs * NUM_OF_THREADS_PER_BLOCK)
@@ -60,13 +60,6 @@ struct DockingParams
 			num_of_lsentities = (unsigned int) (mypars->lsearch_rate/100.0*mypars->pop_size + 0.5);
 			max_num_of_iters  = (unsigned int) mypars->max_num_of_iters;
 		}
-
-		// Note kokkos views are initialized to zero by default
-
-                // Copy arrays
-		// First wrap the C style arrays with an unmanaged kokkos view, then deep copy to the device
-		FloatView1D fgrids_view(cpu_floatgrids, fgrids.extent(0));
-		Kokkos::deep_copy(fgrids, fgrids_view);
 
 		// Create the randomization seeds here and send them to device
 		Kokkos::View<unsigned int*,HostType> prng_seeds("prng_seeds",prng_states.extent(0)); // Could be mirror

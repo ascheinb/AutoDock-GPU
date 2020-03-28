@@ -52,7 +52,7 @@ inline void checkpoint(const char* input)
 }
 
 int docking_with_gpu(const Gridinfo*		mygrid,
-		 /*const*/ float*		cpu_floatgrids,
+		           Kokkos::View<float*,HostType> fgrids_h,
                            Dockpars*		mypars,
 		     const Liganddata*		myligand_init,
 		     const Liganddata*		myxrayligand,
@@ -63,7 +63,7 @@ int docking_with_gpu(const Gridinfo*		mygrid,
 parameter mygrid:
 		describes the grid
 		filled with get_gridinfo()
-parameter cpu_floatgrids:
+parameter fgrids_h:
 		points to the memory region containing the grids
 		filled with get_gridvalues_f()
 parameter mypars:
@@ -127,7 +127,9 @@ filled with clock() */
 	consts.deep_copy(consts_h);
 
 	// Initialize DockingParams
-        DockingParams<DeviceType> docking_params(myligand_reference, mygrid, mypars, cpu_floatgrids);
+        DockingParams<DeviceType> docking_params(myligand_reference, mygrid, mypars);
+	// Copy grid to device
+        Kokkos::deep_copy(docking_params.fgrids, fgrids_h);
 
 	// Input notes
 	if (strcmp(mypars->ls_method, "ad") == 0) {
@@ -280,7 +282,7 @@ filled with clock() */
 			      evals_of_runs_h[run_cnt], 
 			      generation_cnt, 
 			      mygrid, 
-			      cpu_floatgrids, 
+			      fgrids_h.data(), 
 			      cpu_ref_ori_angles.data()+3*run_cnt, 
 			      argc, 
 			      argv, 

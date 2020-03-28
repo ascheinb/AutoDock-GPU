@@ -32,6 +32,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdlib.h>
 #include <time.h>
 //#include <math.h>
+#include <Kokkos_Core.hpp>
+#include "kokkos_settings.hpp"
 
 #include "processgrid.h"
 #include "miscellaneous.h"
@@ -59,7 +61,7 @@ typedef struct {
 #endif
 
 int docking_with_gpu(const Gridinfo*		mygrid,
-		     /*const*/ float*		cpu_floatgrids,
+		     Kokkos::View<float*,HostType> fgrid_h,
 			   Dockpars*		mypars,
 		     const Liganddata*		myligand_init,
 		     const Liganddata*		myxrayligand,
