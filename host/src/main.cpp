@@ -47,46 +47,62 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 int main(int argc, char* argv[])
 {
+  int n_files = 4; // For now, just a loop index
   Kokkos::initialize();
   int err = 0;
 
-  Dockpars   mypars;
-  Liganddata myligand_init;
-  Gridinfo   mygrid;
-  Liganddata myxrayligand;
-  Kokkos::View<float*,HostType> floatgrids("floatgrids", 0);
-  char report_file_name[256];
-  FILE* fp;
-  clock_t clock_start_program;
-  for (int i_test=0;i_test<3;i_test++){
+  // Objects that are arguments of docking_with_gpu
+  // These must each have 2
+  Dockpars   mypars[2];
+  Liganddata myligand_init[2];
+  Gridinfo   mygrid[2];
+  Liganddata myxrayligand[2];
+  Kokkos::View<float*,HostType> floatgrids0("floatgrids0", 0);
+  Kokkos::View<float*,HostType> floatgrids1("floatgrids1", 0);
+
+  for (int i_test=0;i_test<(n_files+1);i_test++){ // one extra iteration since its a pipeline
+    int s_id = i_test % 2;    // Alternate which set is undergoing setup (s_id)
+    int r_id = (i_test+1) %2; // and which is being used in the run (r_id)
+
+    clock_t clock_start_program = clock(); // needs fix? - ALS
+
+    // Other objects
+    char report_file_name[256]; // needs fix? - ALS 
+    FILE* fp;
 #ifndef _WIN32
     // ------------------------
     // Time measurement
-    double num_sec, num_usec, elapsed_sec;
+    double num_sec, num_usec, elapsed_sec; // needs fix? - ALS
     timeval time_start,time_end;
     gettimeofday(&time_start,NULL);
     // ------------------------
 #endif
+    // Branch into two threads
+    // Thread 0 reads files and prepares the inputs to docking_with_gpu
+    // Thread 1 runs docking_with_gpu
+#ifdef USE_GPU
     #pragma omp parallel
     {
       int thread_id = omp_get_thread_num();
-      if (thread_id==0)
+      // Thread 0 does the setup, unless its the last run (so nothing left to load)
+      if (thread_id==0 && i_test<n_files) {
+#else
       {
-	clock_start_program = clock();
-
+      if (i_test<n_files) {
+#endif
 	//------------------------------------------------------------
 	// Capturing names of grid parameter file and ligand pdbqt file
 	//------------------------------------------------------------
 
 	// Filling the filename and coeffs fields of mypars according to command line arguments
-	if (get_filenames_and_ADcoeffs(&argc, argv, &mypars) != 0)
+	if (get_filenames_and_ADcoeffs(&argc, argv, &(mypars[s_id])) != 0)
 		{printf("\n\nError in get_filenames_and_ADcoeffs, stopped job."); err = 1;}
 
 	//------------------------------------------------------------
 	// Testing command line arguments for cgmaps parameter
 	// since we need it at grid creation time
 	//------------------------------------------------------------
-	mypars.cgmaps = 0; // default is 0 (use one maps for every CGx or Gx atom types, respectively)
+	mypars[s_id].cgmaps = 0; // default is 0 (use one maps for every CGx or Gx atom types, respectively)
 	for (unsigned int i=1; i<argc-1; i+=2)
 	{
 		// ----------------------------------
@@ -96,9 +112,9 @@ int main(int argc, char* argv[])
 			int tempint;
 			sscanf(argv [i+1], "%d", &tempint);
 			if (tempint == 0)
-				mypars.cgmaps = 0;
+				mypars[s_id].cgmaps = 0;
 			else
-				mypars.cgmaps = 1;
+				mypars[s_id].cgmaps = 1;
 		}
 		// ----------------------------------
 	}
@@ -107,71 +123,87 @@ int main(int argc, char* argv[])
 	// Processing receptor and ligand files
 	//------------------------------------------------------------
 
-	// Filling mygrid according to the gpf file
-	if (get_gridinfo(mypars.fldfile, &mygrid) != 0)
+	// Filling mygrid[s_id] according to the gpf file
+	if (get_gridinfo(mypars[s_id].fldfile, &(mygrid[s_id])) != 0)
 		{printf("\n\nError in get_gridinfo, stopped job."); err = 1;}
 
 	// Filling the atom types filed of myligand according to the grid types
-	if (init_liganddata(mypars.ligandfile, &myligand_init, &mygrid, mypars.cgmaps) != 0)
+	if (init_liganddata(mypars[s_id].ligandfile, &(myligand_init[s_id]), &(mygrid[s_id]), mypars[s_id].cgmaps) != 0)
 		{printf("\n\nError in init_liganddata, stopped job."); err = 1;}
 
 	// Filling myligand according to the pdbqt file
-	if (get_liganddata(mypars.ligandfile, &myligand_init, mypars.coeffs.AD4_coeff_vdW, mypars.coeffs.AD4_coeff_hb) != 0)
+	if (get_liganddata(mypars[s_id].ligandfile, &(myligand_init[s_id]), mypars[s_id].coeffs.AD4_coeff_vdW, mypars[s_id].coeffs.AD4_coeff_hb) != 0)
 		{printf("\n\nError in get_liganddata, stopped job."); err = 1;}
 
-	// Resize grid
-	Kokkos::resize(floatgrids, 4*(mygrid.num_of_atypes+2)*mygrid.size_xyz[0]*mygrid.size_xyz[1]*mygrid.size_xyz[2]);
+	// Resize grid and set pointer to floatgrids data (maybe should revert this to an array instead of view)
+	float* floatgrids;
+	if (s_id==0){
+		Kokkos::resize(floatgrids0, 4*(mygrid[s_id].num_of_atypes+2)*mygrid[s_id].size_xyz[0]*mygrid[s_id].size_xyz[1]*mygrid[s_id].size_xyz[2]);
+		floatgrids = floatgrids0.data();
+	} else {
+		Kokkos::resize(floatgrids1, 4*(mygrid[s_id].num_of_atypes+2)*mygrid[s_id].size_xyz[0]*mygrid[s_id].size_xyz[1]*mygrid[s_id].size_xyz[2]);
+		floatgrids = floatgrids1.data();
+	}
 
 	//Reading the grid files and storing values in the memory region pointed by floatgrids
-	if (get_gridvalues_f(&mygrid, floatgrids.data(), mypars.cgmaps) != 0)
+	if (get_gridvalues_f(&(mygrid[s_id]), floatgrids, mypars[s_id].cgmaps) != 0)
 		{printf("\n\nError in get_gridvalues_f, stopped job."); err = 1;}
 
 	//------------------------------------------------------------
 	// Capturing algorithm parameters (command line args)
 	//------------------------------------------------------------
-	get_commandpars(&argc, argv, &(mygrid.spacing), &mypars);
+	get_commandpars(&argc, argv, &(mygrid[s_id].spacing), &(mypars[s_id]));
 
 	// Temporary test: add loop# to resname - ALS
 	char it_char[1];
 	if (i_test==0) it_char[0]='0';
         if (i_test==1) it_char[0]='1';
         if (i_test==2) it_char[0]='2';
-	strcat(mypars.resname, it_char);
+	strcat(mypars[s_id].resname, it_char);
 
 	Gridinfo   mydummygrid;
 	// if -lxrayfile provided, then read xray ligand data
-	if (mypars.given_xrayligandfile == true) {
-			if (init_liganddata(mypars.xrayligandfile, &myxrayligand, &mydummygrid, mypars.cgmaps) != 0)
+	if (mypars[s_id].given_xrayligandfile == true) {
+			if (init_liganddata(mypars[s_id].xrayligandfile, &(myxrayligand[s_id]), &mydummygrid, mypars[s_id].cgmaps) != 0)
 				{printf("\n\nError in init_liganddata, stopped job."); err = 1;}
 
-			if (get_liganddata(mypars.xrayligandfile, &myxrayligand, mypars.coeffs.AD4_coeff_vdW, mypars.coeffs.AD4_coeff_hb) != 0)
+			if (get_liganddata(mypars[s_id].xrayligandfile, &(myxrayligand[s_id]), mypars[s_id].coeffs.AD4_coeff_vdW, mypars[s_id].coeffs.AD4_coeff_hb) != 0)
 				{printf("\n\nError in get_liganddata, stopped job."); err = 1;}
 	}
 
 	//------------------------------------------------------------
 	// Calculating energies of reference ligand if required
 	//------------------------------------------------------------
-	if (mypars.reflig_en_reqired == 1) {
-		print_ref_lig_energies_f(myligand_init,
-					 mypars.smooth,
-					 mygrid,
-					 floatgrids.data(),
-					 mypars.coeffs.scaled_AD4_coeff_elec,
-					 mypars.coeffs.AD4_coeff_desolv,
-					 mypars.qasp);
+	if (mypars[s_id].reflig_en_reqired == 1) {
+		print_ref_lig_energies_f(myligand_init[s_id],
+					 mypars[s_id].smooth,
+					 mygrid[s_id],
+					 floatgrids,
+					 mypars[s_id].coeffs.scaled_AD4_coeff_elec,
+					 mypars[s_id].coeffs.AD4_coeff_desolv,
+					 mypars[s_id].qasp);
 	}
 
       }
-      #pragma omp barrier
-      if (thread_id==1) {
+#ifdef USE_GPU
+      // Do the execution on thread 1, except on the first iteration since nothing is loaded yet
+      if (thread_id==1 && i_test>0) {
+#else
+      if (i_test>0) {
+#endif
 	//------------------------------------------------------------
 	// Starting Docking
 	//------------------------------------------------------------
 
 	printf("\nAutoDock-GPU version: %s\n", VERSION);
 
-	if (docking_with_gpu(&mygrid, floatgrids, &mypars, &myligand_init, &myxrayligand, &argc, argv, clock_start_program) != 0)
-		{printf("\n\nError in docking_with_gpu, stopped job."); err = 1;}
+	if (r_id==0){
+		if (docking_with_gpu(&(mygrid[r_id]), floatgrids0, &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), &argc, argv, clock_start_program) != 0)
+			{printf("\n\nError in docking_with_gpu, stopped job."); err = 1;}
+	} else {
+                if (docking_with_gpu(&(mygrid[r_id]), floatgrids1, &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), &argc, argv, clock_start_program) != 0)
+                        {printf("\n\nError in docking_with_gpu, stopped job."); err = 1;}
+	}
 
       }
     } // End of openmp parallel region
@@ -186,7 +218,7 @@ int main(int argc, char* argv[])
     printf("Program run time %.3f sec \n\n", elapsed_sec);
 
     // Append time information to .dlg file
-    strcpy(report_file_name, mypars.resname);
+    strcpy(report_file_name, mypars[s_id].resname); // which one? - ALS
     strcat(report_file_name, ".dlg");
     fp = fopen(report_file_name, "a");
     fprintf(fp, "\n\n\nProgram run time %.3f sec\n", elapsed_sec);
