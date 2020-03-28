@@ -64,9 +64,9 @@ int main(int argc, char* argv[])
   Liganddata myligand_init[2];
   Gridinfo   mygrid[2];
   Liganddata myxrayligand[2];
-  Kokkos::View<float*,HostType> floatgrids0("floatgrids0", 0);
-  Kokkos::View<float*,HostType> floatgrids1("floatgrids1", 0);
-
+  Kokkos::View<float*,HostType> floatgrids[2];
+  floatgrids[0] = Kokkos::View<float*,HostType>("floatgrids0", 0);
+  floatgrids[1] = Kokkos::View<float*,HostType>("floatgrids1", 0);
   for (int i_test=0;i_test<(n_files+1);i_test++){ // one extra iteration since its a pipeline
     int s_id = i_test % 2;    // Alternate which set is undergoing setup (s_id)
     int r_id = (i_test+1) %2; // and which is being used in the run (r_id)
@@ -133,18 +133,11 @@ int main(int argc, char* argv[])
 	if (get_liganddata(mypars[s_id].ligandfile, &(myligand_init[s_id]), mypars[s_id].coeffs.AD4_coeff_vdW, mypars[s_id].coeffs.AD4_coeff_hb) != 0)
 		{printf("\n\nError in get_liganddata, stopped job."); err = 1;}
 
-	// Resize grid and set pointer to floatgrids data (maybe should revert this to an array instead of view)
-	float* floatgrids;
-	if (s_id==0){
-		Kokkos::resize(floatgrids0, 4*(mygrid[s_id].num_of_atypes+2)*mygrid[s_id].size_xyz[0]*mygrid[s_id].size_xyz[1]*mygrid[s_id].size_xyz[2]);
-		floatgrids = floatgrids0.data();
-	} else {
-		Kokkos::resize(floatgrids1, 4*(mygrid[s_id].num_of_atypes+2)*mygrid[s_id].size_xyz[0]*mygrid[s_id].size_xyz[1]*mygrid[s_id].size_xyz[2]);
-		floatgrids = floatgrids1.data();
-	}
+	// Resize grid
+	Kokkos::resize(floatgrids[s_id], 4*(mygrid[s_id].num_of_atypes+2)*mygrid[s_id].size_xyz[0]*mygrid[s_id].size_xyz[1]*mygrid[s_id].size_xyz[2]);
 
 	//Reading the grid files and storing values in the memory region pointed by floatgrids
-	if (get_gridvalues_f(&(mygrid[s_id]), floatgrids, mypars[s_id].cgmaps) != 0)
+	if (get_gridvalues_f(&(mygrid[s_id]), floatgrids[s_id].data(), mypars[s_id].cgmaps) != 0)
 		{printf("\n\nError in get_gridvalues_f, stopped job."); err = 1;}
 
 	//------------------------------------------------------------
@@ -177,7 +170,7 @@ int main(int argc, char* argv[])
 		print_ref_lig_energies_f(myligand_init[s_id],
 					 mypars[s_id].smooth,
 					 mygrid[s_id],
-					 floatgrids,
+					 floatgrids[s_id].data(),
 					 mypars[s_id].coeffs.scaled_AD4_coeff_elec,
 					 mypars[s_id].coeffs.AD4_coeff_desolv,
 					 mypars[s_id].qasp);
@@ -196,13 +189,8 @@ int main(int argc, char* argv[])
 
 	printf("\nAutoDock-GPU version: %s\n", VERSION);
 
-	if (r_id==0){
-		if (docking_with_gpu(&(mygrid[r_id]), floatgrids0, &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), &argc, argv) != 0)
-			{printf("\n\nError in docking_with_gpu, stopped job."); err = 1;}
-	} else {
-                if (docking_with_gpu(&(mygrid[r_id]), floatgrids1, &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), &argc, argv) != 0)
-                        {printf("\n\nError in docking_with_gpu, stopped job."); err = 1;}
-	}
+	if (docking_with_gpu(&(mygrid[r_id]), floatgrids[r_id], &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), &argc, argv) != 0)
+		{printf("\n\nError in docking_with_gpu, stopped job."); err = 1;}
 
       }
     } // End of openmp parallel region
