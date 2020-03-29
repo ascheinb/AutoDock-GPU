@@ -25,10 +25,61 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 
 
 #include "getparameters.h"
+#include <fstream> 
+
+int get_filelist(const int* argc,
+                      char** argv,
+		       bool& filelist_given,
+               std::vector<std::string>& all_fld_files,
+	       std::vector<std::string>& all_ligand_files,
+               std::vector<std::string>& all_resnames)
+//The function checks if a filelist has been provided according to the proper command line arguments.
+//If it is, it loads the .fld, .pdbqt, and resname files into vectors
+{
+        filelist_given = false;
+	char filename [128];
+
+        for (int i=1; i<(*argc)-1; i++)
+        {
+                //Argument: file name that contains list of files.
+                if (strcmp("-filelist", argv[i]) == 0)
+                {
+                        filelist_given = true;
+                        strcpy(filename, argv[i+1]);
+                }
+        }
+
+	if (filelist_given){
+		std::ifstream file(filename);
+		std::string line;
+		while(std::getline(file, line)) {
+			int len = line.size();
+			if (len>=4 && line.compare(len-4,4,".fld") == 0){
+				// Add the .fld file
+				all_fld_files.push_back(line);
+			} else if (len>=6 && line.compare(len-6,6,".pdbqt") == 0){
+				// Add the .pdbqt
+				all_ligand_files.push_back(line);
+			} else if (len>0) {
+				// Anything else in the file is assumed to be the resname
+				all_resnames.push_back(line);
+			}
+		}
+
+		if (all_fld_files.size() != all_ligand_files.size())
+	        	{printf("\n\nError: Unequal number of fld and ligand files in list!"); return 1;}
+
+		if (all_fld_files.size() != all_resnames.size() && all_resnames.size()>0)
+	                {printf("\n\nError: Inconsistent number of resnames!"); return 1;}
+	}
+
+	return 0;
+}
 
 int get_filenames_and_ADcoeffs(const int* argc,
 			       char** argv,
-			       Dockpars* mypars)
+			       Dockpars* mypars,
+			       const bool multiple_files)
 //The function fills the file name and coeffs fields of mypars parameter
 //according to the proper command line arguments.
 {
@@ -68,18 +119,20 @@ int get_filenames_and_ADcoeffs(const int* argc,
 
 	for (i=1; i<(*argc)-1; i++)
 	{
-		//Argument: grid parameter file name.
-		if (strcmp("-ffile", argv[i]) == 0)
-		{
-			ffile_given = 1;
-			strcpy(mypars->fldfile, argv[i+1]);
-		}
+		if (!multiple_files){
+			//Argument: grid parameter file name.
+			if (strcmp("-ffile", argv[i]) == 0)
+			{
+				ffile_given = 1;
+				strcpy(mypars->fldfile, argv[i+1]);
+			}
 
-		//Argument: ligand pdbqt file name
-		if (strcmp("-lfile", argv[i]) == 0)
-		{
-			lfile_given = 1;
-			strcpy(mypars->ligandfile, argv[i+1]);
+			//Argument: ligand pdbqt file name
+			if (strcmp("-lfile", argv[i]) == 0)
+			{
+				lfile_given = 1;
+				strcpy(mypars->ligandfile, argv[i+1]);
+			}
 		}
 
 		//Argument: unbound model to be used.
@@ -108,13 +161,13 @@ int get_filenames_and_ADcoeffs(const int* argc,
 		}
 	}
 
-	if (ffile_given == 0)
+	if (ffile_given == 0 && !multiple_files)
 	{
 		printf("Error: grid fld file was not defined. Use -ffile argument!\n");
 		return 1;
 	}
 
-	if (lfile_given == 0)
+	if (lfile_given == 0 && !multiple_files)
 	{
 		printf("Error: ligand pdbqt file was not defined. Use -lfile argument!\n");
 		return 1;
@@ -447,6 +500,13 @@ void get_commandpars(const int* argc,
 			else
 				mypars->gen_pdbs = tempint;
 		}
+
+		// ---------------------------------
+                // UPDATED in : get_filelist()
+                // ---------------------------------
+                //Argument: name of file containing file list
+                if (strcmp("-filelist", argv [i]) == 0)
+                        arg_recognized = 1;
 
 		// ---------------------------------
 		// MISSING: char fldfile [128]

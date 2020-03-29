@@ -128,23 +128,10 @@ parameters argc and argv:
 	// Copy grid to device
         Kokkos::deep_copy(docking_params.fgrids, fgrids_h);
 
-	// Input notes
-	if (strcmp(mypars->ls_method, "ad") == 0) {
-                printf("\nLocal-search chosen method is ADADELTA (ad) because that is the only one available so far in the Kokkos version.");
-        } else {
+	// Input check
+	if (strcmp(mypars->ls_method, "ad") != 0) {
                 printf("\nOnly one local-search method available. Please set -lsmet ad\n\n"); return 1;
         }
-#if USE_GPU == 1
-	printf("\nUsing the GPU version.");
-#else
-#if USE_OMP == 1
-	printf("\nUsing the CPU version with OpenMP.");
-#else
-	printf("\nUsing the CPU version without OpenMP (serial).");
-#endif
-#endif
-        printf("\nUsing NUM_OF_THREADS_PER_BLOCK = %d ", NUM_OF_THREADS_PER_BLOCK);
-
 
 	// Autostop / Progress bar
 	AutoStop autostop(mypars->pop_size, mypars->num_of_runs, mypars->stopstd);

@@ -29,6 +29,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdlib.h>
 #include <time.h>
 #include <omp.h>
+#include <vector>
 #include <Kokkos_Core.hpp>
 #include "kokkos_settings.hpp"
 
@@ -45,17 +46,30 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 // ------------------------
 #endif
 
+#ifndef _WIN32
+inline double seconds_since(timeval& time_start)
+{
+	timeval time_end;
+	gettimeofday(&time_end,NULL);
+        double num_sec     = time_end.tv_sec  - time_start.tv_sec;
+        double num_usec    = time_end.tv_usec - time_start.tv_usec;
+        return (num_sec + (num_usec/1000000));
+}
+#endif
+
 int main(int argc, char* argv[])
 {
   Kokkos::initialize();
 
-  int n_files = 4; // For now, just a loop index
+  int n_files = 1; // default
+  bool multiple_files = false; // default
   int err = 0;
 #ifndef _WIN32
   // Start full timer
-  timeval time_start,time_end, file_time_start,file_time_end;
+  timeval time_start, loop_time_start;
   gettimeofday(&time_start,NULL);
-  double num_sec, num_usec, elapsed_sec;
+  double exec_time, setup_time
+  double total_savings=0;
 #endif
 
   // Objects that are arguments of docking_with_gpu
@@ -67,13 +81,42 @@ int main(int argc, char* argv[])
   Kokkos::View<float*,HostType> floatgrids[2];
   floatgrids[0] = Kokkos::View<float*,HostType>("floatgrids0", 0);
   floatgrids[1] = Kokkos::View<float*,HostType>("floatgrids1", 0);
-  for (int i_test=0;i_test<(n_files+1);i_test++){ // one extra iteration since its a pipeline
-    int s_id = i_test % 2;    // Alternate which set is undergoing setup (s_id)
-    int r_id = (i_test+1) %2; // and which is being used in the run (r_id)
 
+  // Read all the file names if -filelist option is on
+  std::vector<std::string> all_resnames;
+  std::vector<std::string> all_fld_files;
+  std::vector<std::string> all_ligand_files;
+  if (get_filelist(&argc, argv, multiple_files, all_fld_files, all_ligand_files, all_resnames) != 0)
+		return 1;
+
+  if (multiple_files){
+    n_files = all_fld_files.size();
+    printf("\nRunning %d jobs in pipeline mode ", n_files);
+  }
+
+  // Print version info
+  printf("\nAutoDock-GPU version: %s\n", VERSION);
+#if USE_GPU == 1
+  printf("Using the GPU version. NUM_OF_THREADS_PER_BLOCK = %d ", NUM_OF_THREADS_PER_BLOCK);
+#else
+#if USE_OMP == 1
+  printf("Using the CPU version with OpenMP. NUM_OF_THREADS_PER_BLOCK = %d ", NUM_OF_THREADS_PER_BLOCK);
+#else
+  printf("Using the CPU version without OpenMP (serial).");
+#endif
+#endif
+
+  for (int i_file=0;i_file<(n_files+1);i_file++){ // one extra iteration since its a pipeline
+    int s_id = i_file % 2;    // Alternate which set is undergoing setup (s_id)
+    int r_id = (i_file+1) %2; // and which is being used in the run (r_id)
+    if (i_file<n_files) {
+      printf("\n\n-------------------------------------------------------------------");
+      printf("\nJob #%d: loading %s and %s", i_file, all_fld_files[i_file].c_str(),
+						     all_ligand_files[i_file].c_str()); fflush(stdout);
+    }
 #ifndef _WIN32
     // Time measurement: start of loop
-    gettimeofday(&file_time_start,NULL);
+    gettimeofday(&loop_time_start,NULL);
 #endif
     // Branch into two threads
     // Thread 0 reads files and prepares the inputs to docking_with_gpu
@@ -83,17 +126,22 @@ int main(int argc, char* argv[])
     {
       int thread_id = omp_get_thread_num();
       // Thread 0 does the setup, unless its the last run (so nothing left to load)
-      if (thread_id==0 && i_test<n_files) {
+      if (thread_id==0 && i_file<n_files) {
 #else
-      {
-      if (i_test<n_files) {
+    {
+      if (i_file<n_files) {
 #endif
 	//------------------------------------------------------------
 	// Capturing names of grid parameter file and ligand pdbqt file
 	//------------------------------------------------------------
 
+	if(multiple_files){
+		strcpy(mypars[s_id].fldfile, all_fld_files[i_file].c_str());
+		strcpy(mypars[s_id].ligandfile, all_ligand_files[i_file].c_str());
+	}
+
 	// Filling the filename and coeffs fields of mypars according to command line arguments
-	if (get_filenames_and_ADcoeffs(&argc, argv, &(mypars[s_id])) != 0)
+	if (get_filenames_and_ADcoeffs(&argc, argv, &(mypars[s_id]), multiple_files) != 0)
 		{printf("\n\nError in get_filenames_and_ADcoeffs, stopped job."); err = 1;}
 
 	//------------------------------------------------------------
@@ -145,13 +193,12 @@ int main(int argc, char* argv[])
 	//------------------------------------------------------------
 	get_commandpars(&argc, argv, &(mygrid[s_id].spacing), &(mypars[s_id]));
 
-	// Temporary test: add loop# to resname - ALS
-	char it_char[1];
-	if (i_test==0) it_char[0]='0';
-        if (i_test==1) it_char[0]='1';
-        if (i_test==2) it_char[0]='2';
-	if (i_test==3) it_char[0]='3';
-	strcat(mypars[s_id].resname, it_char);
+	if (all_resnames.size()>0){ // Overwrite resname with specified filename if specified in file list
+		strcpy(mypars[s_id].resname, all_resnames[i_file].c_str());
+	} else if (multiple_files) { // otherwise add the index to existing name distinguish the files if multiple
+		std::string if_str = std::to_string(i_file);
+		strcat(mypars[s_id].resname, if_str.c_str());
+	}
 
 	Gridinfo   mydummygrid;
 	// if -lxrayfile provided, then read xray ligand data
@@ -179,39 +226,44 @@ int main(int argc, char* argv[])
       }
 #ifdef USE_GPU
       // Do the execution on thread 1, except on the first iteration since nothing is loaded yet
-      if (thread_id==1 && i_test>0) {
+      if (thread_id==1 && i_file>0) {
 #else
-      if (i_test>0) {
+      if (i_file>0) {
 #endif
 	//------------------------------------------------------------
 	// Starting Docking
 	//------------------------------------------------------------
 
-	printf("\nAutoDock-GPU version: %s\n", VERSION);
-
 	if (docking_with_gpu(&(mygrid[r_id]), floatgrids[r_id], &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), &argc, argv) != 0)
 		{printf("\n\nError in docking_with_gpu, stopped job."); err = 1;}
 
       }
-    } // End of openmp parallel region
+#ifdef USE_GPU
+      if (thread_id==0) setup_time = seconds_since(loop_time_start);
+      if (thread_id==1) exec_time = seconds_since(loop_time_start);
+#endif
+    } // End of openmp parallel region, implicit thread barrier
 
 #ifndef _WIN32
-    // ------------------------
     // Time measurement of this loop
-    gettimeofday(&file_time_end,NULL);
-    num_sec     = file_time_end.tv_sec  - file_time_start.tv_sec;
-    num_usec    = file_time_end.tv_usec - file_time_start.tv_usec;
-    elapsed_sec = num_sec + (num_usec/1000000);
-    printf("Loop run time %.3f sec \n\n", elapsed_sec);
+    double loop_time = seconds_since(loop_time_start);
+#ifdef USE_GPU
+    double savings = setup_time + exec_time - loop_time;
+#else
+    double savings = 0;
+#endif
+    total_savings += savings;
+    printf("\nLoop run time %.3f sec \n", loop_time);
+    printf("Savings from overlap: %.3f sec \n", savings);
 
-    if (i_test>0){
+    if (i_file>0){
       // Append time information to .dlg file
       char report_file_name[256];
       strcpy(report_file_name, mypars[r_id].resname);
       strcat(report_file_name, ".dlg");
       FILE* fp;
       fp = fopen(report_file_name, "a");
-      fprintf(fp, "\n\n\nFile run time %.3f sec\n", elapsed_sec);
+      fprintf(fp, "\n\n\nRun time %.3f sec\n", loop_time);
       fclose(fp);
     }
 #endif
@@ -221,13 +273,8 @@ int main(int argc, char* argv[])
 
 #ifndef _WIN32
   // Total time measurement
-  gettimeofday(&time_end,NULL);
-  num_sec     = time_end.tv_sec  - time_start.tv_sec;
-  num_usec    = time_end.tv_usec - time_start.tv_usec;
-  elapsed_sec = num_sec + (num_usec/1000000);
-  printf("\nRun time of all %d files together: %.3f sec \n\n", n_files, elapsed_sec);
-
-  //// ------------------------
+  printf("\nRun time of entire job set (%d files): %.3f sec", n_files, seconds_since(time_start));
+  printf("\nTotal savings from overlap: %.3f sec \n\n", total_savings); 
 #endif
 
   Kokkos::finalize();

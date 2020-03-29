@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
+#include <vector>
 
 #include "defines.h"
 #include "processligand.h"
@@ -90,9 +91,17 @@ typedef struct
 		float rmsd_tolerance;
 } Dockpars;
 
+int get_filelist(const int* argc,
+                      char** argv,
+		       bool& file_list_given,
+	       std::vector<std::string>& all_fld_files,
+               std::vector<std::string>& all_ligand_files,
+               std::vector<std::string>& all_resnames);
+
 int get_filenames_and_ADcoeffs(const int*,
 				   char**,
-				Dockpars*);
+				Dockpars*,
+                               const bool);
 
 void get_commandpars(const int*,
 			 char**,
