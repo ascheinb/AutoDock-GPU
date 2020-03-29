@@ -43,6 +43,12 @@ else ifeq ($(DEVICE), GPU)
 	TARGET:=$(TARGET)_gpu
 endif
 
+ifeq ($(OVERLAP), ON)
+	ifeq ($(DEVICE), GPU)
+		KOKKOS_OPTS+=-DUSE_OMP
+	endif
+endif
+
 # Set number of threads per block (different defaults for CPU vs GPU)
 ifdef NUM_OF_THREADS_PER_BLOCK
 	KOKKOS_OPTS+=-DNUM_OF_THREADS_PER_BLOCK=$(NUM_OF_THREADS_PER_BLOCK)
@@ -93,10 +99,10 @@ check-env-dev:
 		echo "DEVICE is undefined"; \
 		exit 1; \
 	else \
-		if [ "$$DEVICE" = "CPU" ]; then \
+		if [ "$$DEVICE" = "GPU" ]; then \
 			echo "DEVICE is set to $$DEVICE"; \
 		else \
-			if [ "$$DEVICE" = "GPU" ]; then \
+			if [ "$$DEVICE" = "CPU" ]; then \
 				echo "DEVICE is set to $$DEVICE"; \
 			else \
 				if [ "$$DEVICE" = "SERIAL" ]; then \
@@ -104,6 +110,10 @@ check-env-dev:
 				else \
 					echo "DEVICE value is invalid. Set DEVICE to either CPU, GPU, or SERIAL (1 thread on CPU)"; \
 				fi; \
+			fi; \
+			if [ "$$OVERLAP" = "ON" ]; then \
+				echo "OVERLAP only works with the GPU version right now"; \
+				exit 1; \
 			fi; \
 		fi; \
 	fi; \

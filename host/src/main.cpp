@@ -44,9 +44,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 // Time measurement
 #include <sys/time.h>
 // ------------------------
-#endif
 
-#ifndef _WIN32
 inline double seconds_since(timeval& time_start)
 {
 	timeval time_end;
@@ -93,17 +91,17 @@ int main(int argc, char* argv[])
 	if (multiple_files){
 		n_files = all_fld_files.size();
 		printf("\nRunning %d jobs in pipeline mode ", n_files);
-#ifdef USE_GPU
+#if defined(USE_GPU) && defined(USE_OMP)
 		overlap=true; // Not set up to work with nested OpenMP (yet)
 #endif
 	}
 
 	// Print version info
 	printf("\nAutoDock-GPU version: %s\n", VERSION);
-#if USE_GPU == 1
+#ifdef USE_GPU
 	printf("Using the GPU version. NUM_OF_THREADS_PER_BLOCK = %d ", NUM_OF_THREADS_PER_BLOCK);
 #else
-#if USE_OMP == 1
+#ifdef USE_OMP
 	printf("Using the CPU version with OpenMP. NUM_OF_THREADS_PER_BLOCK = %d ", NUM_OF_THREADS_PER_BLOCK);
 #else
 	printf("Using the CPU version without OpenMP (serial).");
@@ -126,7 +124,7 @@ int main(int argc, char* argv[])
 		// Branch into two threads
 		//   Thread 0 reads files and prepares the inputs to docking_with_gpu
 		//   Thread 1 runs docking_with_gpu
-#ifdef USE_GPU
+#if defined(USE_GPU) && defined(USE_OMP)
 		#pragma omp parallel
 		{
 			int thread_id = omp_get_thread_num();

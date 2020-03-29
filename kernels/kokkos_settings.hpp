@@ -3,11 +3,11 @@
 #include <Kokkos_Core.hpp>
 
 // Declare the memory and execution spaces.
-#if USE_GPU == 1
+#ifdef USE_GPU
 using MemSpace = Kokkos::CudaSpace;
 using ExSpace = Kokkos::Cuda;
 #else
-#if USE_OMP == 1
+#ifdef USE_OMP
 using MemSpace = Kokkos::HostSpace;
 using ExSpace = Kokkos::OpenMP;
 #else
@@ -18,13 +18,9 @@ using ExSpace = Kokkos::Serial;
 using DeviceType = Kokkos::Device<ExSpace,MemSpace>;
 
 
-// Designate a CPU-specific Memory and Execution space (currently just used for the copy/restore)
+// Designate a CPU-specific Memory and Execution space
 using CPUSpace = Kokkos::HostSpace;
-#if USE_OMP == 1
-using CPUExec = Kokkos::OpenMP;
-#else
 using CPUExec = Kokkos::Serial;
-#endif
 using HostType = Kokkos::Device<CPUExec,CPUSpace>;
 
 // TODO: The two typedefs below use ExSpace, which negates the point of templating everything since now
