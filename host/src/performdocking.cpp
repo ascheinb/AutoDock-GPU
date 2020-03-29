@@ -133,6 +133,10 @@ parameters argc and argv:
                 printf("\nOnly one local-search method available. Please set -lsmet ad\n\n"); return 1;
         }
 
+	//----------------------------- EXECUTION ------------------------------------//
+        printf("\nExecution starts:\n\n");
+        clock_t clock_start_docking = clock();
+
 	// Autostop / Progress bar
 	AutoStop autostop(mypars->pop_size, mypars->num_of_runs, mypars->stopstd);
         if (mypars->autostop)
@@ -145,10 +149,6 @@ parameters argc and argv:
                 printf("        20%%        40%%       60%%       80%%       100%%\n");
                 printf("---------+---------+---------+---------+---------+\n");
         }
-
-	//----------------------------- EXECUTION ------------------------------------//
-        printf("\nExecution starts:\n\n");
-	clock_t clock_start_docking = clock();
 
 	// Get the energy of the initial population (formerly kernel1)
 	checkpoint("K_INIT");
