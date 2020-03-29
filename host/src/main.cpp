@@ -111,7 +111,7 @@ int main(int argc, char* argv[])
 	for (int i_file=0;i_file<(n_files+1);i_file++){ // one extra iteration since its a pipeline
 		int s_id = i_file % 2;    // Alternate which set is undergoing setup (s_id)
 		int r_id = (i_file+1) %2; // and which is being used in the run (r_id)
-		if (i_file<n_files) {
+		if (i_file<n_files && multiple_files) {
 			printf("\n\n-------------------------------------------------------------------");
 			printf("\nJob #%d: ", i_file);
 			printf("\n   Fields from: %s",  all_fld_files[i_file].c_str());
