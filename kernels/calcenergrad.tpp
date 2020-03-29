@@ -78,9 +78,9 @@ KOKKOS_INLINE_FUNCTION float calc_intermolecular_gradients(const int atom_id, co
 		return partial_energy;
 	}
 	// Getting coordinates
-	uint x_low  = (uint)floor(x);
-	uint y_low  = (uint)floor(y);
-	uint z_low  = (uint)floor(z);
+	unsigned int x_low  = (unsigned int)floor(x);
+	unsigned int y_low  = (unsigned int)floor(y);
+	unsigned int z_low  = (unsigned int)floor(z);
 
 	float dx = x - x_low;
 	float omdx = 1.0f - dx;

@@ -151,7 +151,7 @@ KOKKOS_INLINE_FUNCTION void rotate_atoms(const int rotation_counter, const Confo
                 
         if ((rotation_list_element & RLIST_DUMMY_MASK) == 0)    // If not dummy rotation
         {       
-                uint atom_id = rotation_list_element & RLIST_ATOMID_MASK;
+                unsigned int atom_id = rotation_list_element & RLIST_ATOMID_MASK;
                         
                 // Capturing atom coordinates
                 float4struct atom_to_rotate = calc_coords(atom_id);
@@ -162,7 +162,7 @@ KOKKOS_INLINE_FUNCTION void rotate_atoms(const int rotation_counter, const Confo
                         
                 if ((rotation_list_element & RLIST_GENROT_MASK) == 0) // If rotating around rotatable bond
                 {       
-                        uint rotbond_id = (rotation_list_element & RLIST_RBONDID_MASK) >> RLIST_RBONDID_SHIFT;
+                        unsigned int rotbond_id = (rotation_list_element & RLIST_RBONDID_MASK) >> RLIST_RBONDID_SHIFT;
                         
                         float rotation_angle = genotype[6+rotbond_id]*DEG_TO_RAD*0.5f;
                         float s = sin(rotation_angle);
@@ -187,7 +187,7 @@ KOKKOS_INLINE_FUNCTION void rotate_atoms(const int rotation_counter, const Confo
                 {       
                         // Calculating quatrot_left*ref_orientation_quats_const,
                         // which means that reference orientation rotation is the first
-                        uint rid4 = 4*run_id;
+                        unsigned int rid4 = 4*run_id;
 			float4struct ref_orientation;
 			ref_orientation.x = conform.ref_orientation_quats_const(rid4+0);
 			ref_orientation.y = conform.ref_orientation_quats_const(rid4+1);
@@ -209,7 +209,7 @@ KOKKOS_INLINE_FUNCTION float calc_intermolecular_energy(const int atom_id, const
 {
 	float partial_energy = 0.0f;
 
-	uint atom_typeid = interintra.atom_types_const(atom_id);
+	unsigned int atom_typeid = interintra.atom_types_const(atom_id);
 	float x = calc_coords(atom_id).x;
 	float y = calc_coords(atom_id).y;
 	float z = calc_coords(atom_id).z;
@@ -221,9 +221,9 @@ KOKKOS_INLINE_FUNCTION float calc_intermolecular_energy(const int atom_id, const
 		return partial_energy; // get on with loop as our work here is done (we crashed into the walls)
 	}
 	// Getting coordinates
-	uint x_low  = (uint)floor(x);
-	uint y_low  = (uint)floor(y);
-	uint z_low  = (uint)floor(z);
+	unsigned int x_low  = (unsigned int)floor(x);
+	unsigned int y_low  = (unsigned int)floor(y);
+	unsigned int z_low  = (unsigned int)floor(z);
 
 	float dx = x - x_low;
 	float omdx = 1.0 - dx;
@@ -275,9 +275,9 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_energy(const int contributor_co
         float delta_distance = 0.5f*dock_params.smooth;
 
 	// Getting atom IDs
-	uint atom1_id = intracontrib.intraE_contributors_const(3*contributor_counter);
-	uint atom2_id = intracontrib.intraE_contributors_const(3*contributor_counter+1);
-	uint hbond = (uint)(intracontrib.intraE_contributors_const(3*contributor_counter+2) == 1);    // evaluates to 1 in case of H-bond, 0 otherwise
+	unsigned int atom1_id = intracontrib.intraE_contributors_const(3*contributor_counter);
+	unsigned int atom2_id = intracontrib.intraE_contributors_const(3*contributor_counter+1);
+	unsigned int hbond = (unsigned int)(intracontrib.intraE_contributors_const(3*contributor_counter+2) == 1);    // evaluates to 1 in case of H-bond, 0 otherwise
 
 	// Calculating vector components of vector going
 	// from first atom's to second atom's coordinates
@@ -289,11 +289,11 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_energy(const int contributor_co
 	float atomic_distance = sqrt(subx*subx + suby*suby + subz*subz)*dock_params.grid_spacing;
 
 	// Getting type IDs
-	uint atom1_typeid = interintra.atom_types_const(atom1_id);
-	uint atom2_typeid = interintra.atom_types_const(atom2_id);
+	unsigned int atom1_typeid = interintra.atom_types_const(atom1_id);
+	unsigned int atom2_typeid = interintra.atom_types_const(atom2_id);
 
-	uint atom1_type_vdw_hb = intra.atom1_types_reqm_const(atom1_typeid);
-	uint atom2_type_vdw_hb = intra.atom2_types_reqm_const(atom2_typeid);
+	unsigned int atom1_type_vdw_hb = intra.atom1_types_reqm_const(atom1_typeid);
+	unsigned int atom2_type_vdw_hb = intra.atom2_types_reqm_const(atom2_typeid);
 
 
 	// Calculating energy contributions
@@ -318,7 +318,7 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_energy(const int contributor_co
 			smoothed_distance = atomic_distance - delta_distance;
 		}
 		// Calculating van der Waals / hydrogen bond term
-		uint idx = atom1_typeid * dock_params.num_of_atypes + atom2_typeid;
+		unsigned int idx = atom1_typeid * dock_params.num_of_atypes + atom2_typeid;
 		partial_energy += (intra.VWpars_AC_const(idx) / pow(smoothed_distance,12)) -
 				  (intra.VWpars_BD_const(idx) / pow(smoothed_distance,6+4*hbond));
 

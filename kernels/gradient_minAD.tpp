@@ -66,7 +66,7 @@ void gradient_minAD(Generation<Device>& next, Dockpars* mypars,DockingParams<Dev
 		// Initializing variable arrays for gradient descent
 		GenotypeAux square_gradient(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
 		GenotypeAux square_delta(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
-		for(uint i = tidx; i < ACTUAL_GENOTYPE_LENGTH; i+= team_member.team_size()) {
+		for(int i = tidx; i < ACTUAL_GENOTYPE_LENGTH; i+= team_member.team_size()) {
                         square_gradient[i]=0; // Probably unnecessary since kokkos views are automatically initialized to 0 (not sure if that's the case in scratch though)
 			square_delta[i]=0;
                 }
@@ -162,7 +162,7 @@ void gradient_minAD(Generation<Device>& next, Dockpars* mypars,DockingParams<Dev
 		// -----------------------------------------------------------------------------
 
 		// Modulo torsion angles
-		for (uint gene_counter = tidx+3;
+		for (int gene_counter = tidx+3;
 			  gene_counter < docking_params.num_of_genes;
 			  gene_counter+= team_member.team_size()) {
                         while (best_genotype[gene_counter] >= 360.0f) { best_genotype[gene_counter] -= 360.0f; }
