@@ -58,6 +58,7 @@ inline double seconds_since(timeval& time_start)
 int main(int argc, char* argv[])
 {
 	Kokkos::initialize();
+	{ // Add a scope so that Kokkos views in main are deallocated before reaching Kokkos::finalize()
 
 	int n_files = 1; // default
 	bool multiple_files = false; // default
@@ -272,6 +273,7 @@ int main(int argc, char* argv[])
 	if (overlap) printf("\nTotal savings from overlap: %.3f sec \n\n", total_savings); 
 #endif
 
+	} // End kokkos scope so that views deallocate before reaching Kokkos:finalize()
 	Kokkos::finalize();
 
 	return 0;
