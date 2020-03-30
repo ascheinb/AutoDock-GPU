@@ -42,12 +42,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 // Expressing them using angstroms / radians
 // might help gradient-based minimizers.
 // This conversion is applied to final gradients.
-//#define CONVERT_INTO_ANGSTROM_RADIAN
+#define CONVERT_INTO_ANGSTROM_RADIAN
 
 // Scaling factor to multiply the gradients of 
 // the genes expressed in degrees (all genes except the first three) 
 // (GRID-SPACING * GRID-SPACING) / (DEG_TO_RAD * DEG_TO_RAD) = 461.644
-//#define SCFACTOR_ANGSTROM_RADIAN ((0.375 * 0.375)/(DEG_TO_RAD * DEG_TO_RAD))
+#define SCFACTOR_ANGSTROM_RADIAN ((0.375 * 0.375)/(DEG_TO_RAD * DEG_TO_RAD))
 
 #include "calcenergy.hpp"
 
