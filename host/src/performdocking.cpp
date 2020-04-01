@@ -129,6 +129,22 @@ parameters argc and argv:
 	// Copy grid to device
         Kokkos::deep_copy(docking_params.fgrids, fgrids_h);
 
+	// Adjust ls_method and num_of_energy_evals based on heuristics
+	if(mypars->use_heuristics && !mypars->nev_provided){
+		printf("Using heuristics: ");
+		char newmethod[128];
+		if(myligand_init->num_of_rotbonds<8){ // use Solis-Wets
+			strcpy(newmethod,"sw");
+			mypars->num_of_energy_evals = (unsigned long)ceil(1000 * pow(2.0,1.3 * myligand_init->num_of_rotbonds + 4.0));
+			printf("-lsmet sw -nev %u\n",mypars->num_of_energy_evals);
+		} else{ // use ADAdelta
+			strcpy(newmethod,"ad");
+			mypars->num_of_energy_evals = (unsigned long)ceil(1000 * pow(2.0,0.4 * myligand_init->num_of_rotbonds + 7.0));
+			printf("-lsmet ad -nev %u\n",mypars->num_of_energy_evals);
+		}
+		strcpy(mypars->ls_method,newmethod);
+	}
+
 	// Input check
 	if (strcmp(mypars->ls_method, "ad") == 0){
 		printf("\nUsing ADADELTA scheme.\n");
