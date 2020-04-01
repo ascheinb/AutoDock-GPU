@@ -174,7 +174,6 @@ parameters argc and argv:
 	// Get the energy of the initial population (formerly kernel1)
 	checkpoint("K_INIT");
 	calc_init_pop(odd_generation, mypars, docking_params, consts);
-	Kokkos::fence();
 	checkpoint(" ... Finished\n");
 
 	// Reduction on the number of evaluations (formerly kernel2)
@@ -218,7 +217,6 @@ parameters argc and argv:
 		} else {
 			gen_alg_eval_new(even_generation, odd_generation, mypars, docking_params, genetic_params, consts);
 		}
-                Kokkos::fence();
 		checkpoint(" ... Finished\n");
 
 		// Refine conformations to minimize energies
@@ -231,7 +229,6 @@ parameters argc and argv:
 				} else {
 					gradient_minAD(odd_generation, mypars, docking_params, consts);
 				}
-				Kokkos::fence();
 				checkpoint(" ... Finished\n");
 			} else if (strcmp(mypars->ls_method, "sw") == 0) {
 				// Solis-Wets algorithm
@@ -241,7 +238,6 @@ parameters argc and argv:
                                 } else {
                                         solis_wets(odd_generation, mypars, docking_params, consts);
                                 }
-                                Kokkos::fence();
                                 checkpoint(" ... Finished\n");
 			} else {
 				// sd, and fire are NOT SUPPORTED in the Kokkos version (yet)
