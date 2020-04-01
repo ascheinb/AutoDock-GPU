@@ -23,20 +23,15 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 */
 
 
-
 #include "getparameters.h"
 #include <fstream> 
 
 int get_filelist(const int* argc,
                       char** argv,
-		       bool& filelist_given,
-               std::vector<std::string>& all_fld_files,
-	       std::vector<std::string>& all_ligand_files,
-               std::vector<std::string>& all_resnames)
+		   FileList& filelist)
 //The function checks if a filelist has been provided according to the proper command line arguments.
 //If it is, it loads the .fld, .pdbqt, and resname files into vectors
 {
-        filelist_given = false;
 	char filename [128];
 
         for (int i=1; i<(*argc)-1; i++)
@@ -44,32 +39,34 @@ int get_filelist(const int* argc,
                 //Argument: file name that contains list of files.
                 if (strcmp("-filelist", argv[i]) == 0)
                 {
-                        filelist_given = true;
+                        filelist.used = true;
                         strcpy(filename, argv[i+1]);
                 }
         }
 
-	if (filelist_given){
+	if (filelist.used){
 		std::ifstream file(filename);
 		std::string line;
 		while(std::getline(file, line)) {
 			int len = line.size();
 			if (len>=4 && line.compare(len-4,4,".fld") == 0){
 				// Add the .fld file
-				all_fld_files.push_back(line);
+				filelist.fld_files.push_back(line);
 			} else if (len>=6 && line.compare(len-6,6,".pdbqt") == 0){
 				// Add the .pdbqt
-				all_ligand_files.push_back(line);
+				filelist.ligand_files.push_back(line);
 			} else if (len>0) {
 				// Anything else in the file is assumed to be the resname
-				all_resnames.push_back(line);
+				filelist.resnames.push_back(line);
 			}
 		}
 
-		if (all_fld_files.size() != all_ligand_files.size())
+		filelist.nfiles = filelist.fld_files.size();
+
+		if (filelist.fld_files.size() != filelist.ligand_files.size())
 	        	{printf("\n\nError: Unequal number of fld and ligand files in list!"); return 1;}
 
-		if (all_fld_files.size() != all_resnames.size() && all_resnames.size()>0)
+		if (filelist.fld_files.size() != filelist.resnames.size() && filelist.resnames.size()>0)
 	                {printf("\n\nError: Inconsistent number of resnames!"); return 1;}
 	}
 

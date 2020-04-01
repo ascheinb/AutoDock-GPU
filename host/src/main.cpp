@@ -40,6 +40,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "processligand.h"
 #include "getparameters.h"
 #include "performdocking.h"
+#include "filelist.hpp"
 
 #ifndef _WIN32
 // ------------------------
@@ -62,8 +63,8 @@ int main(int argc, char* argv[])
 	Kokkos::initialize();
 	{ // Add a scope so that Kokkos views in main are deallocated before reaching Kokkos::finalize()
 
+	FileList filelist;
 	int n_files = 1; // default
-	bool multiple_files = false; // default
 	bool overlap = false; // default
 	int setup_thread = 0; // thread the performs the setup
 	int execution_thread = 0; // thread that performs the execution
@@ -87,14 +88,11 @@ int main(int argc, char* argv[])
 	floatgrids[1] = Kokkos::View<float*,HostType>("floatgrids1", 0);
 
 	// Read all the file names if -filelist option is on
-	std::vector<std::string> all_resnames;
-	std::vector<std::string> all_fld_files;
-	std::vector<std::string> all_ligand_files;
-	if (get_filelist(&argc, argv, multiple_files, all_fld_files, all_ligand_files, all_resnames) != 0)
+	if (get_filelist(&argc, argv, filelist) != 0)
 		      return 1;
 
-	if (multiple_files){
-		n_files = all_fld_files.size();
+	if (filelist.used){
+		n_files = filelist.nfiles;
 		printf("\nRunning %d jobs in pipeline mode ", n_files);
 #if defined(USE_GPU) && defined(USE_OMP)
 		overlap=true; // Not set up to work with nested OpenMP (yet)
@@ -117,11 +115,11 @@ int main(int argc, char* argv[])
 	for (int i_file=0;i_file<(n_files+1);i_file++){ // one extra iteration since its a pipeline
 		int s_id = i_file % 2;    // Alternate which set is undergoing setup (s_id)
 		int r_id = (i_file+1) %2; // and which is being used in the run (r_id)
-		if (i_file<n_files && multiple_files) {
+		if (i_file<n_files && filelist.used) {
 			printf("\n\n-------------------------------------------------------------------");
 			printf("\nJob #%d: ", i_file);
-			printf("\n   Fields from: %s",  all_fld_files[i_file].c_str());
-			printf("\n   Ligands from: %s", all_ligand_files[i_file].c_str()); fflush(stdout);
+			printf("\n   Fields from: %s",  filelist.fld_files[i_file].c_str());
+			printf("\n   Ligands from: %s", filelist.ligand_files[i_file].c_str()); fflush(stdout);
 		}
 #ifndef _WIN32
 		// Time measurement: start of loop
@@ -144,13 +142,13 @@ int main(int argc, char* argv[])
 				// Capturing names of grid parameter file and ligand pdbqt file
 				//------------------------------------------------------------
 
-				if(multiple_files){
-					strcpy(mypars[s_id].fldfile, all_fld_files[i_file].c_str());
-					strcpy(mypars[s_id].ligandfile, all_ligand_files[i_file].c_str());
+				if(filelist.used){
+					strcpy(mypars[s_id].fldfile, filelist.fld_files[i_file].c_str());
+					strcpy(mypars[s_id].ligandfile, filelist.ligand_files[i_file].c_str());
 				}
 
 				// Filling the filename and coeffs fields of mypars according to command line arguments
-				if (get_filenames_and_ADcoeffs(&argc, argv, &(mypars[s_id]), multiple_files) != 0)
+				if (get_filenames_and_ADcoeffs(&argc, argv, &(mypars[s_id]), filelist.used) != 0)
 					{printf("\n\nError in get_filenames_and_ADcoeffs, stopped job."); err = 1;}
 
 				//------------------------------------------------------------
@@ -201,9 +199,9 @@ int main(int argc, char* argv[])
 				//------------------------------------------------------------
 				get_commandpars(&argc, argv, &(mygrid[s_id].spacing), &(mypars[s_id]));
 
-				if (all_resnames.size()>0){ // Overwrite resname with specified filename if specified in file list
-					strcpy(mypars[s_id].resname, all_resnames[i_file].c_str());
-				} else if (multiple_files) { // otherwise add the index to existing name distinguish the files if multiple
+				if (filelist.resnames.size()>0){ // Overwrite resname with specified filename if specified in file list
+					strcpy(mypars[s_id].resname, filelist.resnames[i_file].c_str());
+				} else if (filelist.used) { // otherwise add the index to existing name distinguish the files if multiple
 					std::string if_str = std::to_string(i_file);
 					strcat(mypars[s_id].resname, if_str.c_str());
 				}

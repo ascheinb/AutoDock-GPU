@@ -38,6 +38,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "processgrid.h"
 #include "miscellaneous.h"
 #include "calcenergy_basic.h"
+#include "filelist.hpp"
 
 typedef struct
 {
@@ -95,10 +96,7 @@ typedef struct
 
 int get_filelist(const int* argc,
                       char** argv,
-		       bool& file_list_given,
-	       std::vector<std::string>& all_fld_files,
-               std::vector<std::string>& all_ligand_files,
-               std::vector<std::string>& all_resnames);
+		     FileList& filelist);
 
 int get_filenames_and_ADcoeffs(const int*,
 				   char**,
