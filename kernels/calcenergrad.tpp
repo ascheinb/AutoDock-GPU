@@ -390,7 +390,7 @@ KOKKOS_INLINE_FUNCTION void reduce_translation_gradients(const member_type& team
 
 
 template<class Device>
-KOKKOS_INLINE_FUNCTION void calc_rotation_gradients(const member_type& team_member, const DockingParams<Device>& docking_params, const AxisCorrection<Device>& axis_correction,float4struct& genrot_movingvec, float4struct& genrot_unitvec, Coordinates calc_coords, const float phi, const float theta, const float genrotangle, const bool is_theta_gt_pi, AtomGradients atom_gradients, GenotypeAux gradient)
+KOKKOS_INLINE_FUNCTION void calc_rotation_gradients(const member_type& team_member, const DockingParams<Device>& docking_params, const AxisCorrection<Device>& axis_correction,float4struct& genrot_movingvec, float4struct& genrot_unitvec, Coordinates calc_coords, const float phi, const float theta, const float genrotangle, const float sign_of_sin_theta, AtomGradients atom_gradients, GenotypeAux gradient)
 {
 	int tidx = team_member.team_rank();
 	// Transform gradients_inter_{x|y|z}
@@ -489,8 +489,8 @@ KOKKOS_INLINE_FUNCTION void calc_rotation_gradients(const member_type& team_memb
                 target_rotangle = 2.0f * fast_acos(target_q.w); // = 2.0f * ang;
                 float sin_ang = sqrt(1.0f-target_q.w*target_q.w); // = native_sin(ang);
 
-                target_theta = PI_TIMES_2 + is_theta_gt_pi * fast_acos( target_q.z / sin_ang );
-                target_phi   = fmod_two_pi((atan2( is_theta_gt_pi*target_q.y, is_theta_gt_pi*target_q.x) + PI_TIMES_2));
+                target_theta = PI_TIMES_2 + sign_of_sin_theta * fast_acos( target_q.z / sin_ang );
+                target_phi   = fmod_two_pi((atan2( sign_of_sin_theta*target_q.y, sign_of_sin_theta*target_q.x) + PI_TIMES_2));
 
                 // The infinitesimal rotation will produce an infinitesimal displacement
                 // in shoemake space. This is to guarantee that the direction of
@@ -700,7 +700,7 @@ KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const 
 	genrot_unitvec.y = s2*sin_angle*sin(phi);
 	genrot_unitvec.z = s2*cos(theta);
 	genrot_unitvec.w = cos(genrotangle*0.5f);
-	bool is_theta_gt_pi = 1.0-2.0*(float)(sin_angle < 0.0f); // WTF - ALS
+	float sign_of_sin_theta = 1.0-2.0*(float)(sin_angle < 0.0f); // WTF - ALS
 
 	team_member.team_barrier();
 
@@ -747,7 +747,7 @@ KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const 
 	team_member.team_barrier();
 
 	// Obtaining rotation-related gradients
-	calc_rotation_gradients(team_member, docking_params, consts.axis_correction,genrot_movingvec, genrot_unitvec, calc_coords, phi, theta, genrotangle, is_theta_gt_pi, atom_gradients, gradient);
+	calc_rotation_gradients(team_member, docking_params, consts.axis_correction,genrot_movingvec, genrot_unitvec, calc_coords, phi, theta, genrotangle, sign_of_sin_theta, atom_gradients, gradient);
 
 	team_member.team_barrier();
 
