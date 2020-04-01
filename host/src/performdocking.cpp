@@ -127,7 +127,7 @@ parameters argc and argv:
 	// Initialize DockingParams
         DockingParams<DeviceType> docking_params(myligand_reference, mygrid, mypars);
 	// Copy grid to device
-        Kokkos::deep_copy(docking_params.fgrids, fgrids_h);
+        Kokkos::deep_copy(docking_params.fgrids_write, fgrids_h);
 
 	// Adjust ls_method and num_of_energy_evals based on heuristics
 	if(mypars->use_heuristics && !mypars->nev_provided){

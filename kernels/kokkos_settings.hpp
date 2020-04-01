@@ -36,5 +36,6 @@ typedef Kokkos::View<float*, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unm
 typedef Kokkos::View<int*, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> IntView1D;
 typedef Kokkos::View<unsigned int*, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> UnsignedIntView1D;
 
-
+// Short hand for RandomAccess memory
+using RandomAccess = Kokkos::MemoryTraits<Kokkos::RandomAccess>;
 #endif

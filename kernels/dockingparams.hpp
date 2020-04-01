@@ -13,7 +13,8 @@ struct DockingParams
 	unsigned int    g2;
 	unsigned int    g3;
 	float           grid_spacing;
-	Kokkos::View<float*,Device> fgrids;
+	Kokkos::View<float*,Device> fgrids_write; // View for the copy to device
+	Kokkos::View<const float*,Device,RandomAccess> fgrids; // View for the kernels (random access)
         int             rotbondlist_length;
         float           coeff_elec;
         float           coeff_desolv;
@@ -37,7 +38,7 @@ struct DockingParams
 
 	// Constructor
 	DockingParams(const Liganddata& myligand_reference, const Gridinfo* mygrid, const Dockpars* mypars)
-		: fgrids("fgrids", 4 * (mygrid->num_of_atypes+2) * (mygrid->size_xyz[0]) * (mygrid->size_xyz[1]) * (mygrid->size_xyz[2])),
+		: fgrids_write("fgrids_write", 4 * (mygrid->num_of_atypes+2) * (mygrid->size_xyz[0]) * (mygrid->size_xyz[1]) * (mygrid->size_xyz[2])),
 		  evals_of_new_entities("evals_of_new_entities", mypars->pop_size * mypars->num_of_runs),
 		  prng_states("prng_states",mypars->pop_size * mypars->num_of_runs * NUM_OF_THREADS_PER_BLOCK)
 	{
@@ -72,6 +73,9 @@ struct DockingParams
 			cons_limit = (unsigned int) mypars->cons_limit;
 			rho_lower_bound = mypars->rho_lower_bound;
 		}
+
+		// Point fgrids to fgrids_write
+		fgrids = fgrids_write;
 
 		// Create the randomization seeds here and send them to device
 		Kokkos::View<unsigned int*,HostType> prng_seeds("prng_seeds",prng_states.extent(0)); // Could be mirror

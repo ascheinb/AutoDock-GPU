@@ -103,7 +103,7 @@ KOKKOS_INLINE_FUNCTION float quaternion_length(const float4struct v)
 
 // trilinear interpolation
 template<class Device>
-KOKKOS_INLINE_FUNCTION float trilinear_interp(Kokkos::View<float*,Device> fgrids, const int i, const float* weights)
+KOKKOS_INLINE_FUNCTION float trilinear_interp(const Kokkos::View<const float*,Device,RandomAccess> fgrids, const int i, const float* weights)
 {
 	return (fgrids(i+idx_000)*weights[idx_000] +
 		fgrids(i+idx_010)*weights[idx_010] +
@@ -117,7 +117,7 @@ KOKKOS_INLINE_FUNCTION float trilinear_interp(Kokkos::View<float*,Device> fgrids
 
 // gradient - move this and the above functions to a different file - ALS
 template<class Device>
-KOKKOS_INLINE_FUNCTION float4struct spatial_gradient(Kokkos::View<float*,Device> fgrids, const int i,
+KOKKOS_INLINE_FUNCTION float4struct spatial_gradient(const Kokkos::View<const float*,Device,RandomAccess> fgrids, const int i,
 		const float dx,const float dy,const float dz, const float omdx,const float omdy,const float omdz)
 {
 	float4struct result;
