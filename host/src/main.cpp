@@ -65,6 +65,8 @@ int main(int argc, char* argv[])
 	int n_files = 1; // default
 	bool multiple_files = false; // default
 	bool overlap = false; // default
+	int setup_thread = 0; // thread the performs the setup
+	int execution_thread = 0; // thread that performs the execution
 	int err = 0;
 #ifndef _WIN32
 	// Start full timer
@@ -96,6 +98,7 @@ int main(int argc, char* argv[])
 		printf("\nRunning %d jobs in pipeline mode ", n_files);
 #if defined(USE_GPU) && defined(USE_OMP)
 		overlap=true; // Not set up to work with nested OpenMP (yet)
+		execution_thread = 1; // Assign Thread 1 to do the execution
 #endif
 	}
 
@@ -125,8 +128,8 @@ int main(int argc, char* argv[])
 		gettimeofday(&loop_time_start,NULL);
 #endif
 		// Branch into two threads
-		//   Thread 0 reads files and prepares the inputs to docking_with_gpu
-		//   Thread 1 runs docking_with_gpu
+		//   setup_thread reads files and prepares the inputs to docking_with_gpu
+		//   execution_thread runs docking_with_gpu
 #if defined(USE_GPU) && defined(USE_OMP)
 		#pragma omp parallel
 		{
@@ -136,7 +139,7 @@ int main(int argc, char* argv[])
 			int thread_id = 0;
 #endif
 			// Thread 0 does the setup, unless its the last run (so nothing left to load)
-			if ((thread_id==0 || !overlap) && i_file<n_files) {
+			if ((thread_id==setup_thread) && i_file<n_files) {
 				//------------------------------------------------------------
 				// Capturing names of grid parameter file and ligand pdbqt file
 				//------------------------------------------------------------
@@ -229,7 +232,7 @@ int main(int argc, char* argv[])
 				}
 			}
 			// Do the execution on thread 1, except on the first iteration since nothing is loaded yet
-			if ((thread_id==1 || !overlap) && i_file>0) {
+			if ((thread_id==execution_thread) && i_file>0) {
 				//------------------------------------------------------------
 				// Starting Docking
 				//------------------------------------------------------------
@@ -239,8 +242,8 @@ int main(int argc, char* argv[])
 
 			}
 #ifndef _WIN32
-			if (thread_id==0 && overlap) setup_time = seconds_since(loop_time_start);
-			if (thread_id==1 && overlap) exec_time = seconds_since(loop_time_start);
+			if (thread_id==setup_thread && overlap) setup_time = seconds_since(loop_time_start);
+			if (thread_id==execution_thread && overlap) exec_time = seconds_since(loop_time_start);
 #endif
 		} // End of openmp parallel region, implicit thread barrier
 		if (err==1) return 1; // Couldnt return immediately while in parallel region
