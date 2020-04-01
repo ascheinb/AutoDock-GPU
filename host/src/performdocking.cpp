@@ -53,7 +53,7 @@ inline void checkpoint(const char* input)
 }
 
 int docking_with_gpu(const Gridinfo*		mygrid,
-		           Kokkos::View<float*,HostType> fgrids_h,
+		           Kokkos::View<float*,HostType>& fgrids_h,
                            Dockpars*		mypars,
 		     const Liganddata*		myligand_init,
 		     const Liganddata*		myxrayligand,

@@ -36,11 +36,11 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "kokkos_settings.hpp"
 
 #include "processgrid.h"
-//include "processresult.h"
 #include "processligand.h"
 #include "getparameters.h"
 #include "performdocking.h"
 #include "filelist.hpp"
+#include "setup.hpp"
 
 #ifndef _WIN32
 // ------------------------
@@ -91,6 +91,7 @@ int main(int argc, char* argv[])
 	if (get_filelist(&argc, argv, filelist) != 0)
 		      return 1;
 
+	// Setup using filelist
 	if (filelist.used){
 		n_files = filelist.nfiles;
 		printf("\nRunning %d jobs in pipeline mode ", n_files);
@@ -138,103 +139,14 @@ int main(int argc, char* argv[])
 #endif
 			// Thread 0 does the setup, unless its the last run (so nothing left to load)
 			if ((thread_id==setup_thread) && i_file<n_files) {
-				//------------------------------------------------------------
-				// Capturing names of grid parameter file and ligand pdbqt file
-				//------------------------------------------------------------
-
-				if(filelist.used){
-					strcpy(mypars[s_id].fldfile, filelist.fld_files[i_file].c_str());
-					strcpy(mypars[s_id].ligandfile, filelist.ligand_files[i_file].c_str());
-				}
-
-				// Filling the filename and coeffs fields of mypars according to command line arguments
-				if (get_filenames_and_ADcoeffs(&argc, argv, &(mypars[s_id]), filelist.used) != 0)
-					{printf("\n\nError in get_filenames_and_ADcoeffs, stopped job."); err = 1;}
-
-				//------------------------------------------------------------
-				// Testing command line arguments for cgmaps parameter
-				// since we need it at grid creation time
-				//------------------------------------------------------------
-				mypars[s_id].cgmaps = 0; // default is 0 (use one maps for every CGx or Gx atom types, respectively)
-				for (unsigned int i=1; i<argc-1; i+=2)
-				{
-					// ----------------------------------
-					//Argument: Use individual maps for CG-G0 instead of the same one
-					if (strcmp("-cgmaps", argv [i]) == 0)
-					{
-						int tempint;
-						sscanf(argv [i+1], "%d", &tempint);
-						if (tempint == 0)
-							mypars[s_id].cgmaps = 0;
-						else
-							mypars[s_id].cgmaps = 1;
-					}
-				}
-
-				//------------------------------------------------------------
-				// Processing receptor and ligand files
-				//------------------------------------------------------------
-
-				// Filling mygrid[s_id] according to the gpf file
-				if (get_gridinfo(mypars[s_id].fldfile, &(mygrid[s_id])) != 0)
-					{printf("\n\nError in get_gridinfo, stopped job."); err = 1;}
-
-				// Filling the atom types filed of myligand according to the grid types
-				if (init_liganddata(mypars[s_id].ligandfile, &(myligand_init[s_id]), &(mygrid[s_id]), mypars[s_id].cgmaps) != 0)
-					{printf("\n\nError in init_liganddata, stopped job."); err = 1;}
-
-				// Filling myligand according to the pdbqt file
-				if (get_liganddata(mypars[s_id].ligandfile, &(myligand_init[s_id]), mypars[s_id].coeffs.AD4_coeff_vdW, mypars[s_id].coeffs.AD4_coeff_hb) != 0)
-					{printf("\n\nError in get_liganddata, stopped job."); err = 1;}
-
-				// Resize grid
-				Kokkos::resize(floatgrids[s_id], 4*(mygrid[s_id].num_of_atypes+2)*mygrid[s_id].size_xyz[0]*mygrid[s_id].size_xyz[1]*mygrid[s_id].size_xyz[2]);
-
-				//Reading the grid files and storing values in the memory region pointed by floatgrids
-				if (get_gridvalues_f(&(mygrid[s_id]), floatgrids[s_id].data(), mypars[s_id].cgmaps) != 0)
-					{printf("\n\nError in get_gridvalues_f, stopped job."); err = 1;}
-
-				//------------------------------------------------------------
-				// Capturing algorithm parameters (command line args)
-				//------------------------------------------------------------
-				get_commandpars(&argc, argv, &(mygrid[s_id].spacing), &(mypars[s_id]));
-
-				if (filelist.resnames.size()>0){ // Overwrite resname with specified filename if specified in file list
-					strcpy(mypars[s_id].resname, filelist.resnames[i_file].c_str());
-				} else if (filelist.used) { // otherwise add the index to existing name distinguish the files if multiple
-					std::string if_str = std::to_string(i_file);
-					strcat(mypars[s_id].resname, if_str.c_str());
-				}
-
-				Gridinfo mydummygrid;
-				// if -lxrayfile provided, then read xray ligand data
-				if (mypars[s_id].given_xrayligandfile == true) {
-					if (init_liganddata(mypars[s_id].xrayligandfile, &(myxrayligand[s_id]), &mydummygrid, mypars[s_id].cgmaps) != 0)
-						{printf("\n\nError in init_liganddata, stopped job."); err = 1;}
-
-					if (get_liganddata(mypars[s_id].xrayligandfile, &(myxrayligand[s_id]), mypars[s_id].coeffs.AD4_coeff_vdW, mypars[s_id].coeffs.AD4_coeff_hb) != 0)
-						{printf("\n\nError in get_liganddata, stopped job."); err = 1;}
-				}
-
-				//------------------------------------------------------------
-				// Calculating energies of reference ligand if required
-				//------------------------------------------------------------
-				if (mypars[s_id].reflig_en_reqired == 1) {
-					print_ref_lig_energies_f(myligand_init[s_id],
-								 mypars[s_id].smooth,
-								 mygrid[s_id],
-								 floatgrids[s_id].data(),
-								 mypars[s_id].coeffs.scaled_AD4_coeff_elec,
-								 mypars[s_id].coeffs.AD4_coeff_desolv,
-								 mypars[s_id].qasp);
-				}
+				// Load files, read inputs, prepare arrays for docking stage
+				if (setup(mygrid[s_id], floatgrids[s_id], mypars[s_id], myligand_init[s_id], myxrayligand[s_id], filelist, i_file, argc, argv) != 0)
+					{printf("\n\nError in setup, stopped job."); err = 1;}
 			}
+
 			// Do the execution on thread 1, except on the first iteration since nothing is loaded yet
 			if ((thread_id==execution_thread) && i_file>0) {
-				//------------------------------------------------------------
 				// Starting Docking
-				//------------------------------------------------------------
-
 				if (docking_with_gpu(&(mygrid[r_id]), floatgrids[r_id], &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), &argc, argv) != 0)
 					{printf("\n\nError in docking_with_gpu, stopped job."); err = 1;}
 
