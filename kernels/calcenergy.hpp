@@ -17,7 +17,7 @@ template<class Device>
 KOKKOS_INLINE_FUNCTION float calc_intramolecular_energy(const int contributor_counter, const DockingParams<Device>& dock_params, const IntraContrib<Device>& intracontrib, const InterIntra<Device>& interintra, const Intra<Device>& intra, Kokkos::View<float4struct[MAX_NUM_OF_ATOMS]> calc_coords);
 
 template<class Device>
-KOKKOS_INLINE_FUNCTION float calc_energy(const member_type& team_member, const DockingParams<Device>& docking_params, const Constants<Device>& consts, Genotype genotype);
+KOKKOS_INLINE_FUNCTION float calc_energy(const member_type& team_member, const DockingParams<Device>& docking_params, const Constants<Device>& consts, Coordinates calc_coords, Genotype genotype, int run_id);
 
 #include "calcenergy.tpp"
 

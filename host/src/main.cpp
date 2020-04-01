@@ -28,7 +28,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#ifdef USE_OMP
 #include <omp.h>
+#endif
 #include <vector>
 #include <Kokkos_Core.hpp>
 #include "kokkos_settings.hpp"

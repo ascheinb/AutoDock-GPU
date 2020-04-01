@@ -365,13 +365,9 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_energy(const int contributor_co
 }
 
 template<class Device>
-KOKKOS_INLINE_FUNCTION float calc_energy(const member_type& team_member, const DockingParams<Device>& docking_params,const Constants<Device>& consts, Genotype genotype)
+KOKKOS_INLINE_FUNCTION float calc_energy(const member_type& team_member, const DockingParams<Device>& docking_params,const Constants<Device>& consts, Coordinates calc_coords, Genotype genotype, int run_id)
 {
-        // Determine which run this team is doing - note this is a floor since integer division
-        int run_id = team_member.league_rank()/docking_params.pop_size;
-
 	// GETTING ATOMIC POSITIONS
-	Coordinates calc_coords(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
 	Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
 			[=] (int& idx) {
 		get_atom_pos(idx, consts.conform, calc_coords);

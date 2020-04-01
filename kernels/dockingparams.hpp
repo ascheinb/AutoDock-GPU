@@ -29,6 +29,12 @@ struct DockingParams
         unsigned int    num_of_lsentities;
         unsigned int    max_num_of_iters;
 
+	// Used in Solis-Wets kernel
+	float base_dmov_mul_sqrt3;
+	float base_dang_mul_sqrt3;
+	unsigned int cons_limit;
+	float rho_lower_bound;
+
 	// Constructor
 	DockingParams(const Liganddata& myligand_reference, const Gridinfo* mygrid, const Dockpars* mypars)
 		: fgrids("fgrids", 4 * (mygrid->num_of_atypes+2) * (mygrid->size_xyz[0]) * (mygrid->size_xyz[1]) * (mygrid->size_xyz[2])),
@@ -59,6 +65,12 @@ struct DockingParams
 		{
 			num_of_lsentities = (unsigned int) (mypars->lsearch_rate/100.0*mypars->pop_size + 0.5);
 			max_num_of_iters  = (unsigned int) mypars->max_num_of_iters;
+
+			// Used in Solis-Wets kernel
+			base_dmov_mul_sqrt3 = mypars->base_dmov_mul_sqrt3;
+			base_dang_mul_sqrt3 = mypars->base_dang_mul_sqrt3;
+			cons_limit = (unsigned int) mypars->cons_limit;
+			rho_lower_bound = mypars->rho_lower_bound;
 		}
 
 		// Create the randomization seeds here and send them to device

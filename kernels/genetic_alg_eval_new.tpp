@@ -81,8 +81,11 @@ void gen_alg_eval_new(Generation<Device>& current, Generation<Device>& next, Doc
 
 			team_member.team_barrier();
 
+			// Have to declare this outside calc_energy since Solis-Wets has energy calc in a loop
+			Coordinates calc_coords(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+
 			// Get the current energy for each run
-			float energy = calc_energy(team_member, docking_params, consts, offspring_genotype);
+			float energy = calc_energy(team_member, docking_params, consts, calc_coords, offspring_genotype, run_id);
 
 			// Copy to global views
 			if( tidx == 0 ) {

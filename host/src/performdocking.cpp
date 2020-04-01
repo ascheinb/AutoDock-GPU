@@ -41,6 +41,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "sum_evals.hpp"
 #include "genetic_alg_eval_new.hpp"
 #include "gradient_minAD.hpp"
+#include "solis_wets.hpp"
 
 inline void checkpoint(const char* input)
 {
@@ -129,8 +130,12 @@ parameters argc and argv:
         Kokkos::deep_copy(docking_params.fgrids, fgrids_h);
 
 	// Input check
-	if (strcmp(mypars->ls_method, "ad") != 0) {
-                printf("\nOnly one local-search method available. Please set -lsmet ad\n\n"); return 1;
+	if (strcmp(mypars->ls_method, "ad") == 0){
+		printf("\nUsing ADADELTA scheme.\n");
+	} else if (strcmp(mypars->ls_method, "sw") == 0) {
+		printf("\nUsing Solis-Wets scheme.\n");
+	} else {
+                printf("\nOnly ADADELTA or Solis-Wets schemes available. Please set -lsmet ad or sw \n\n"); return 1;
         }
 
 	//----------------------------- EXECUTION ------------------------------------//
@@ -212,8 +217,18 @@ parameters argc and argv:
 				}
 				Kokkos::fence();
 				checkpoint(" ... Finished\n");
+			} else if (strcmp(mypars->ls_method, "sw") == 0) {
+				// Solis-Wets algorithm
+				checkpoint("SOLIS_WETS");
+                                if (generation_cnt % 2 == 0){
+                                        solis_wets(even_generation, mypars, docking_params, consts);
+                                } else {
+                                        solis_wets(odd_generation, mypars, docking_params, consts);
+                                }
+                                Kokkos::fence();
+                                checkpoint(" ... Finished\n");
 			} else {
-				// sw, sd, and fire are NOT SUPPORTED in the Kokkos version (yet)
+				// sd, and fire are NOT SUPPORTED in the Kokkos version (yet)
 			}
 		}
 
