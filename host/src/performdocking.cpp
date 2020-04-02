@@ -109,20 +109,23 @@ parameters argc and argv:
 	Kokkos::View<int*,DeviceType> evals_of_runs("evals_of_runs",mypars->num_of_runs);
 
 	// Declare the constant arrays on host and device
-	Constants<HostType> consts_h;
+	ConstantsW<HostType> consts_h;
+	ConstantsW<DeviceType> consts_d;
 	Constants<DeviceType> consts;
 
 	// Initialize host constants
 	// WARNING - Changes myligand_reference !!! - ALS
-	if (prepare_const_fields(myligand_reference, mypars, cpu_ref_ori_angles.data(),
-                                         consts_h.interintra, consts_h.intracontrib, consts_h.intra, consts_h.rotlist, consts_h.conform, consts_h.grads) == 1) {
+	if (prepare_const_fields(myligand_reference, mypars, cpu_ref_ori_angles.data(), consts_h) == 1) {
                 return 1;
         }
 	prepare_axis_correction(angle, dependence_on_theta, dependence_on_rotangle,
                                         consts_h.axis_correction);
 
 	// Copy constants to device
-	consts.deep_copy(consts_h);
+	consts_d.deep_copy(consts_h);
+
+	// Set random access constants to consts_d
+	consts.set(consts_d);
 
 	// Initialize DockingParams
         DockingParams<DeviceType> docking_params(myligand_reference, mygrid, mypars);

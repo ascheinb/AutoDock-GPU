@@ -41,16 +41,11 @@ template<class Device>
 int prepare_const_fields(Liganddata&			myligand_reference,
 				 Dockpars*			mypars,
 				 float*				cpu_ref_ori_angles,
-				 InterIntra<Device>& interintra,
-				 IntraContrib<Device>& intracontrib,
-				 Intra<Device>& intra,
-				 RotList<Device>& rotlist,
-				 Conform<Device>& conform,
-				 Grads<Device>& grads);
+				 ConstantsW<Device>& c);
 
 template<class Device>
 void prepare_axis_correction( float* angle, float* dependence_on_theta, float* dependence_on_rotangle,
-                                 AxisCorrection<Device>& axis_correction);
+                                 AxisCorrectionW<Device>& axis_correction);
 
 #include "prepare_const_fields.tpp"
 

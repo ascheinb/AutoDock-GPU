@@ -29,12 +29,7 @@ template<class Device>
 int prepare_const_fields(Liganddata&			myligand_reference,
 				 Dockpars*			mypars,
 				 float*				cpu_ref_ori_angles,
-                                 InterIntra<Device>& interintra,
-                                 IntraContrib<Device>& intracontrib,
-                                 Intra<Device>& intra,
-                                 RotList<Device>& rotlist_out,
-                                 Conform<Device>& conform,
-				 Grads<Device>& grads)
+				 ConstantsW<Device>& c)
 
 //The function fills the constant memory field of the GPU (ADM FPGA)
 //defined above (erased from here) and used during GPU docking,
@@ -323,24 +318,24 @@ int prepare_const_fields(Liganddata&			myligand_reference,
 
 	int m;
 
-	for (m=0;m<MAX_NUM_OF_ATOMS;m++){ interintra.atom_charges_const[m] = atom_charges[m]; }
-	for (m=0;m<MAX_NUM_OF_ATOMS;m++){ interintra.atom_types_const[m]   = atom_types[m];   }
+	for (m=0;m<MAX_NUM_OF_ATOMS;m++){ c.interintra.atom_charges_const[m] = atom_charges[m]; }
+	for (m=0;m<MAX_NUM_OF_ATOMS;m++){ c.interintra.atom_types_const[m]   = atom_types[m];   }
 
-	for (m=0;m<3*MAX_INTRAE_CONTRIBUTORS;m++){ intracontrib.intraE_contributors_const[m] = intraE_contributors[m]; }
+	for (m=0;m<3*MAX_INTRAE_CONTRIBUTORS;m++){ c.intracontrib.intraE_contributors_const[m] = intraE_contributors[m]; }
 
 	for (m=0;m<ATYPE_NUM;m++){
-		intra.reqm_const[m]	    = 0.5*reqm[m];
-		intra.reqm_const[m+ATYPE_NUM]	    = reqm_hbond[m];
+		c.intra.reqm_const[m]	    = 0.5*reqm[m];
+		c.intra.reqm_const[m+ATYPE_NUM]	    = reqm_hbond[m];
 	}
-	for (m=0;m<ATYPE_NUM;m++)				{ intra.atom1_types_reqm_const[m] = atom1_types_reqm[m]; }
-	for (m=0;m<ATYPE_NUM;m++)				{ intra.atom2_types_reqm_const[m] = atom2_types_reqm[m]; }
-	for (m=0;m<MAX_NUM_OF_ATYPES*MAX_NUM_OF_ATYPES;m++)	{ intra.VWpars_AC_const[m]        = VWpars_AC[m]; }
-	for (m=0;m<MAX_NUM_OF_ATYPES*MAX_NUM_OF_ATYPES;m++)	{ intra.VWpars_BD_const[m]        = VWpars_BD[m]; }
-	for (m=0;m<MAX_NUM_OF_ATYPES;m++)			{ intra.dspars_S_const[m]         = dspars_S[m]; }
-	for (m=0;m<MAX_NUM_OF_ATYPES;m++)			{ intra.dspars_V_const[m]         = dspars_V[m]; }
+	for (m=0;m<ATYPE_NUM;m++)				{ c.intra.atom1_types_reqm_const[m] = atom1_types_reqm[m]; }
+	for (m=0;m<ATYPE_NUM;m++)				{ c.intra.atom2_types_reqm_const[m] = atom2_types_reqm[m]; }
+	for (m=0;m<MAX_NUM_OF_ATYPES*MAX_NUM_OF_ATYPES;m++)	{ c.intra.VWpars_AC_const[m]        = VWpars_AC[m]; }
+	for (m=0;m<MAX_NUM_OF_ATYPES*MAX_NUM_OF_ATYPES;m++)	{ c.intra.VWpars_BD_const[m]        = VWpars_BD[m]; }
+	for (m=0;m<MAX_NUM_OF_ATYPES;m++)			{ c.intra.dspars_S_const[m]         = dspars_S[m]; }
+	for (m=0;m<MAX_NUM_OF_ATYPES;m++)			{ c.intra.dspars_V_const[m]         = dspars_V[m]; }
 
 	for (m=0;m<MAX_NUM_OF_ROTATIONS;m++) {
-		rotlist_out.rotlist_const[m]  = rotlist[m];
+		c.rotlist.rotlist_const[m]  = rotlist[m];
 /*		if(m!=0 && m%myligand_reference.num_of_atoms==0)
 			printf("***\n");
 		if(m!=0 && m%NUM_OF_THREADS_PER_BLOCK==0)
@@ -349,26 +344,26 @@ int prepare_const_fields(Liganddata&			myligand_reference,
 	}
 
 	for (m=0;m<MAX_NUM_OF_ATOMS;m++) {
-		conform.ref_coords_const[3*m]		 = ref_coords_x[m];
-		conform.ref_coords_const[3*m+1]	 = ref_coords_y[m];
-		conform.ref_coords_const[3*m+2]	 = ref_coords_z[m];
+		c.conform.ref_coords_const[3*m]		 = ref_coords_x[m];
+		c.conform.ref_coords_const[3*m+1]	 = ref_coords_y[m];
+		c.conform.ref_coords_const[3*m+2]	 = ref_coords_z[m];
 	}
-	for (m=0;m<3*MAX_NUM_OF_ROTBONDS;m++){ conform.rotbonds_moving_vectors_const[m]= rotbonds_moving_vectors[m]; }
-	for (m=0;m<3*MAX_NUM_OF_ROTBONDS;m++){ conform.rotbonds_unit_vectors_const[m]  = rotbonds_unit_vectors[m]; }
-	for (m=0;m<4*MAX_NUM_OF_RUNS;m++)    { conform.ref_orientation_quats_const[m]  = ref_orientation_quats[m]; }
+	for (m=0;m<3*MAX_NUM_OF_ROTBONDS;m++){ c.conform.rotbonds_moving_vectors_const[m]= rotbonds_moving_vectors[m]; }
+	for (m=0;m<3*MAX_NUM_OF_ROTBONDS;m++){ c.conform.rotbonds_unit_vectors_const[m]  = rotbonds_unit_vectors[m]; }
+	for (m=0;m<4*MAX_NUM_OF_RUNS;m++)    { c.conform.ref_orientation_quats_const[m]  = ref_orientation_quats[m]; }
 
 	// Added for calculating torsion-related gradients.
 	// Passing list of rotbond-atoms ids to the GPU.
 	// Contains the same information as processligand.h/Liganddata->rotbonds
-	for (m=0;m<2*MAX_NUM_OF_ROTBONDS;m++)			{ grads.rotbonds[m]			  = rotbonds[m]; }
-	for (m=0;m<MAX_NUM_OF_ATOMS*MAX_NUM_OF_ROTBONDS;m++)	{ grads.rotbonds_atoms[m]                 = rotbonds_atoms[m]; }
-	for (m=0;m<MAX_NUM_OF_ROTBONDS;m++)			{ grads.num_rotating_atoms_per_rotbond[m] = num_rotating_atoms_per_rotbond[m]; }
+	for (m=0;m<2*MAX_NUM_OF_ROTBONDS;m++)			{ c.grads.rotbonds[m]			  = rotbonds[m]; }
+	for (m=0;m<MAX_NUM_OF_ATOMS*MAX_NUM_OF_ROTBONDS;m++)	{ c.grads.rotbonds_atoms[m]                 = rotbonds_atoms[m]; }
+	for (m=0;m<MAX_NUM_OF_ROTBONDS;m++)			{ c.grads.num_rotating_atoms_per_rotbond[m] = num_rotating_atoms_per_rotbond[m]; }
 	return 0;
 }
 
 template<class Device>
 void prepare_axis_correction( float* angle, float* dependence_on_theta, float* dependence_on_rotangle,
-                                 AxisCorrection<Device>& axis_correction)
+                                 AxisCorrectionW<Device>& axis_correction)
 {
 	for (int m=0;m<NUM_AXIS_CORRECTION;m++)
 	{
