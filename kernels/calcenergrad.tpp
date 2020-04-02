@@ -675,10 +675,8 @@ KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const 
         }
 
 	// GETTING ATOMIC POSITIONS
-	Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-	[=] (int& idx) {
+	TEAM_PARALLEL_FOR(team_member, (int)(docking_params.num_of_atoms), idx)
 		get_atom_pos(idx, consts.conform, calc_coords);
-	});
 
 	// CALCULATING ATOMIC POSITIONS AFTER ROTATIONS
 	// General rotation moving vector
@@ -705,26 +703,20 @@ KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const 
 	team_member.team_barrier();
 
 	// Loop over the rot bond list and carry out all the rotations
-	Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, docking_params.rotbondlist_length),
-	[=] (int& idx) {
+	TEAM_PARALLEL_FOR(team_member, docking_params.rotbondlist_length, idx)
 		rotate_atoms(idx, consts.conform, consts.rotlist, run_id, genotype, genrot_movingvec, genrot_unitvec, calc_coords);
-	});
 
 	team_member.team_barrier();
 
 	// CALCULATING INTERMOLECULAR ENERGY AND GRADIENTS
         // loop over atoms
-        Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-                        [=] (int& idx) {
+        TEAM_PARALLEL_FOR(team_member, (int)(docking_params.num_of_atoms), idx)
                 energies(team_member.team_rank()) = calc_intermolecular_gradients(idx, docking_params, consts.interintra, calc_coords, atom_gradients);
-        });
 
 	// CALCULATING INTRAMOLECULAR ENERGY AND GRADIENTS
         // loop over intraE contributors
-        Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, docking_params.num_of_intraE_contributors),
-                        [=] (int& idx) {
+        TEAM_PARALLEL_FOR(team_member, docking_params.num_of_intraE_contributors, idx)
                 energies(team_member.team_rank()) += calc_intramolecular_gradients(idx, docking_params, consts.intracontrib, consts.interintra, consts.intra, calc_coords, atom_gradients);
-        });
 
 	reduction(team_member, energies); // sums all energies into energies(0)
 

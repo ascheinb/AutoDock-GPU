@@ -31,6 +31,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define FAST_ACOS_f  0.370388f
 #define FAST_ACOS_o -(FAST_ACOS_a+FAST_ACOS_b+FAST_ACOS_c+FAST_ACOS_d)
 
+#define TEAM_PARALLEL_FOR(team_member, len, idx) for (int idx = team_member.team_rank(); idx < len; idx += team_member.team_size())
+
 KOKKOS_INLINE_FUNCTION float fast_acos(float cosine)
 {
         float x=fabs(cosine);
@@ -385,10 +387,8 @@ template<class Device>
 KOKKOS_INLINE_FUNCTION float calc_energy(const member_type& team_member, const DockingParams<Device>& docking_params,const Constants<Device>& consts, Coordinates calc_coords, TeamFloat energies, Genotype genotype, int run_id)
 {
 	// GETTING ATOMIC POSITIONS
-	Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-			[=] (int& idx) {
+	TEAM_PARALLEL_FOR(team_member, (int)(docking_params.num_of_atoms), idx)
 		get_atom_pos(idx, consts.conform, calc_coords);
-	});
 
 	// CALCULATING ATOMIC POSITIONS AFTER ROTATIONS
 	// General rotation moving vector
@@ -413,26 +413,20 @@ KOKKOS_INLINE_FUNCTION float calc_energy(const member_type& team_member, const D
 	team_member.team_barrier();
 
 	// Loop over the rot bond list and carry out all the rotations
-	Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, docking_params.rotbondlist_length),
-			[=] (int& idx) {
+	TEAM_PARALLEL_FOR(team_member, docking_params.rotbondlist_length, idx)
 		rotate_atoms(idx, consts.conform, consts.rotlist, run_id, genotype, genrot_movingvec, genrot_unitvec, calc_coords);
-	});
 
 	team_member.team_barrier();
 
 	// CALCULATING INTERMOLECULAR ENERGY
 	// loop over atoms
-	Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-			[=] (int& idx) {
+	TEAM_PARALLEL_FOR(team_member, (int)(docking_params.num_of_atoms), idx)
 		energies(team_member.team_rank()) = calc_intermolecular_energy(idx, docking_params, consts.interintra, calc_coords);
-	});
 
 	// CALCULATING INTRAMOLECULAR ENERGY
 	// loop over intraE contributors
-	Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, docking_params.num_of_intraE_contributors),
-			[=] (int& idx) {
+	TEAM_PARALLEL_FOR(team_member, docking_params.num_of_intraE_contributors, idx)
 		energies(team_member.team_rank()) += calc_intramolecular_energy(idx, docking_params, consts.intracontrib, consts.interintra, consts.intra, calc_coords);
-	});
 
 	reduction(team_member, energies); // sums all energies into energies(0)
 
