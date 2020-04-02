@@ -9,7 +9,7 @@ void calc_init_pop(Generation<Device>& current, Dockpars* mypars,DockingParams<D
         int league_size = mypars->pop_size * mypars->num_of_runs;
 
 	// Get the size of the shared memory allocation
-	size_t shmem_size = Coordinates::shmem_size() + Genotype::shmem_size();
+	size_t shmem_size = Coordinates::shmem_size() + Genotype::shmem_size() + TeamFloat::shmem_size();
         Kokkos::parallel_for (Kokkos::TeamPolicy<ExSpace> (league_size, NUM_OF_THREADS_PER_BLOCK ).
                               set_scratch_size(KOKKOS_TEAM_SCRATCH_OPT,Kokkos::PerTeam(shmem_size)),
                               KOKKOS_LAMBDA (member_type team_member)
@@ -28,9 +28,10 @@ void calc_init_pop(Generation<Device>& current, Dockpars* mypars,DockingParams<D
 
 		// Have to declare this outside calc_energy since Solis-Wets has energy calc in a loop
 		Coordinates calc_coords(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+		TeamFloat energies(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
 
 		// Get the current energy for each run
-		float energy = calc_energy(team_member, docking_params, consts, calc_coords, genotype, run_id);
+		float energy = calc_energy(team_member, docking_params, consts, calc_coords, energies, genotype, run_id);
 
 		// Copy to global views
                 if( tidx == 0 ) {

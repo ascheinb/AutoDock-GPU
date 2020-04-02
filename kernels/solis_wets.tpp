@@ -10,7 +10,7 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 
 	// Get the size of the shared memory allocation
         size_t shmem_size = Coordinates::shmem_size() + 2*Genotype::shmem_size() + 2*GenotypeAux::shmem_size()
-			  + OneInt::shmem_size() + 2*OneBool::shmem_size();
+			  + OneInt::shmem_size() + 2*OneBool::shmem_size() + TeamFloat::shmem_size();
 	Kokkos::parallel_for (Kokkos::TeamPolicy<ExSpace> (league_size, NUM_OF_THREADS_PER_BLOCK ).
                               set_scratch_size(KOKKOS_TEAM_SCRATCH_OPT,Kokkos::PerTeam(shmem_size)),
                         KOKKOS_LAMBDA (member_type team_member)
@@ -79,6 +79,7 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 		// Declare/allocate coordinates for internal use by calc_energy only. Must be outside of loop since there is
 		// no way to de/reallocate things in Kokkos team scratch
 		Coordinates calc_coords(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+		TeamFloat energies(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
 		while (stay_in_loop(0)){
 			// New random deviate
 			float good_dir = 1.0f;
@@ -99,7 +100,7 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 			team_member.team_barrier();
 
 			// Calculating energy of candidate, increment #evals, check if energy improved
-			energy = calc_energy(team_member, docking_params, consts, calc_coords, genotype, run_id);
+			energy = calc_energy(team_member, docking_params, consts, calc_coords, energies, genotype, run_id);
 			evaluation_cnt++;
 			if ((tidx == 0) && (energy < best_energy)) energy_improved(0)=true;
 
@@ -116,7 +117,7 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 				team_member.team_barrier();
 
 				// Calculating energy of candidate, increment #evals, check if energy improved
-				energy = calc_energy(team_member, docking_params, consts, calc_coords, genotype, run_id);
+				energy = calc_energy(team_member, docking_params, consts, calc_coords, energies, genotype, run_id);
 				evaluation_cnt++;
 				if ((tidx == 0) && (energy < best_energy)) energy_improved(0)=true;
 

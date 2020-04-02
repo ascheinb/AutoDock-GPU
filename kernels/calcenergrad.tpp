@@ -645,7 +645,7 @@ int tidx = team_member.team_rank();
 
 
 template<class Device>
-KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const DockingParams<Device>& docking_params,Genotype genotype,const Constants<Device>& consts, Coordinates calc_coords, AtomGradients atom_gradients, float& energy, GenotypeAux gradient)
+KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const DockingParams<Device>& docking_params,Genotype genotype,const Constants<Device>& consts, Coordinates calc_coords, TeamFloat energies, AtomGradients atom_gradients, float& energy, GenotypeAux gradient)
 {
         // Get team and league ranks
         int tidx = team_member.team_rank();
@@ -713,27 +713,25 @@ KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const 
 	team_member.team_barrier();
 
 	// CALCULATING INTERMOLECULAR ENERGY AND GRADIENTS
-	// Note - reduction is on energy, atom_gradients is reduced manually below
-	float energy_inter;
         // loop over atoms
-        Kokkos::parallel_reduce (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-                        [=] (int& idx, float& l_energy_inter) {
-                l_energy_inter += calc_intermolecular_gradients(idx, docking_params, consts.interintra, calc_coords, atom_gradients);
-        }, energy_inter);
+        Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
+                        [=] (int& idx) {
+                energies(team_member.team_rank()) = calc_intermolecular_gradients(idx, docking_params, consts.interintra, calc_coords, atom_gradients);
+        });
 
 	// CALCULATING INTRAMOLECULAR ENERGY AND GRADIENTS
-	// Note - reduction is on energy, atom_gradients is reduced manually below
-	float energy_intra;
         // loop over intraE contributors
-        Kokkos::parallel_reduce (Kokkos::TeamThreadRange (team_member, docking_params.num_of_intraE_contributors),
-                        [=] (int& idx, float& l_energy_intra) {
-                l_energy_intra += calc_intramolecular_gradients(idx, docking_params, consts.intracontrib, consts.interintra, consts.intra, calc_coords, atom_gradients);
-        }, energy_intra);
+        Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, docking_params.num_of_intraE_contributors),
+                        [=] (int& idx) {
+                energies(team_member.team_rank()) += calc_intramolecular_gradients(idx, docking_params, consts.intracontrib, consts.interintra, consts.intra, calc_coords, atom_gradients);
+        });
+
+	reduction(team_member, energies); // sums all energies into energies(0)
 
 	team_member.team_barrier();
 
 	// Get total energy
-	energy = energy_inter + energy_intra;
+	energy = energies(0);
 
 	// ACCUMULATE INTER- AND INTRAMOLECULAR GRADIENTS
 	// Warning! Repurposes atom_gradients!
