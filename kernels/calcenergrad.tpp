@@ -444,6 +444,7 @@ KOKKOS_INLINE_FUNCTION void calc_rotation_gradients(const member_type& team_memb
                 // Derived from rotation.py/axisangle_to_q()
                 // genes[3:7] = rotation.axisangle_to_q(torque, rad)
                 float torque_length = quaternion_length(torque_rot);
+		torque_length += (torque_length<1e-20)*1e-20; // In case torque is 0
 		float inv_torque_len_SHIR = (SIN_HALF_INFINITESIMAL_RADIAN / torque_length);
 
                 // Infinitesimal rotation in radians
