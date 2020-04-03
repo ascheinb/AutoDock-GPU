@@ -708,6 +708,7 @@ KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const 
 	Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, docking_params.rotbondlist_length),
 	[=] (int& idx) {
 		rotate_atoms(idx, consts.conform, consts.rotlist, run_id, genotype, genrot_movingvec, genrot_unitvec, calc_coords);
+		team_member.team_barrier();
 	});
 
 	team_member.team_barrier();
