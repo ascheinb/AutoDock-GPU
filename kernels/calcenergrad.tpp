@@ -713,13 +713,14 @@ KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const 
 
 	team_member.team_barrier();
 
-	// Obtaining rotation-related gradients
-	calc_rotation_gradients(team_member, docking_params, consts.axis_correction,genrot_movingvec, genrot_unitvec, calc_coords, phi, theta, genrotangle, sign_of_sin_theta, atom_gradients, gradient);
+	// Obtaining torsion-related gradients
+	calc_torsion_gradients(team_member, docking_params, consts.grads, calc_coords, atom_gradients, gradient);
 
 	team_member.team_barrier();
 
-	// Obtaining torsion-related gradients
-	calc_torsion_gradients(team_member, docking_params, consts.grads, calc_coords, atom_gradients, gradient);
+	// Obtaining rotation-related gradients
+	calc_rotation_gradients(team_member, docking_params, consts.axis_correction,genrot_movingvec, genrot_unitvec, calc_coords, phi, theta, genrotangle, sign_of_sin_theta, atom_gradients, gradient);
+
 
 #if defined (CONVERT_INTO_ANGSTROM_RADIAN)
 	team_member.team_barrier();
