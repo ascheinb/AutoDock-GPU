@@ -116,11 +116,20 @@ int main(int argc, char* argv[])
 	for (int i_file=0;i_file<(n_files+1);i_file++){ // one extra iteration since its a pipeline
 		int s_id = i_file % 2;    // Alternate which set is undergoing setup (s_id)
 		int r_id = (i_file+1) %2; // and which is being used in the run (r_id)
-		if (i_file<n_files && filelist.used) {
+		if (filelist.used) {
 			printf("\n\n-------------------------------------------------------------------");
-			printf("\nJob #%d: ", i_file);
-			printf("\n   Fields from: %s",  filelist.fld_files[i_file].c_str());
-			printf("\n   Ligands from: %s", filelist.ligand_files[i_file].c_str()); fflush(stdout);
+			if (i_file<n_files){
+				printf("\n(Prepping Job #%d: )", i_file);
+				printf("\n(   Reading fields: %s )",  filelist.fld_files[i_file].c_str());
+				printf("\n(   Reading ligands: %s )", filelist.ligand_files[i_file].c_str()); fflush(stdout);
+			}
+			if (i_file>0){
+				if (i_file<n_files) printf("\nMeanwhile, running ");
+				if (i_file==n_files) printf("\nRunning ");
+				printf("Job #%d: ", i_file-1);
+				printf("\n   Fields from: %s",  filelist.fld_files[i_file-1].c_str());
+				printf("\n   Ligands from: %s", filelist.ligand_files[i_file-1].c_str()); fflush(stdout);
+			}
 		}
 #ifndef _WIN32
 		// Time measurement: start of loop
