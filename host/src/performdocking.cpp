@@ -134,7 +134,7 @@ parameters argc and argv:
 
 	// Adjust ls_method and num_of_energy_evals based on heuristics
 	if(mypars->use_heuristics && !mypars->nev_provided){
-		printf("Using heuristics: ");
+		printf("\nUsing heuristics: ");
 		char newmethod[128];
 		if(myligand_init->num_of_rotbonds<8){ // use Solis-Wets
 			strcpy(newmethod,"sw");
@@ -146,6 +146,11 @@ parameters argc and argv:
 			printf("-lsmet ad -nev %u\n",mypars->num_of_energy_evals);
 		}
 		strcpy(mypars->ls_method,newmethod);
+
+		if (mypars->num_of_energy_evals>mypars->max_num_of_energy_evals){
+			printf("Overriding heuristics, setting -nev to -maxnev ( = %u) instead.\n",mypars->max_num_of_energy_evals);
+			mypars->num_of_energy_evals = mypars->max_num_of_energy_evals;
+		}
 	}
 
 	// Input check

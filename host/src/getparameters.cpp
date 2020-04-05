@@ -47,27 +47,36 @@ int get_filelist(const int* argc,
 	if (filelist.used){
 		std::ifstream file(filename);
 		std::string line;
+		bool prev_line_was_fld=false;
 		while(std::getline(file, line)) {
 			int len = line.size();
 			if (len>=4 && line.compare(len-4,4,".fld") == 0){
-				// Add the .fld file
-				filelist.fld_files.push_back(line);
+				if (prev_line_was_fld){ // Overwrite the previous fld file if two in a row
+					filelist.fld_files[filelist.fld_files.size()] = line;
+					printf("\n\nWarning: a listed .fld file was not used!");
+				} else {
+					// Add the .fld file
+					filelist.fld_files.push_back(line);
+					prev_line_was_fld=true;
+				}
 			} else if (len>=6 && line.compare(len-6,6,".pdbqt") == 0){
 				// Add the .pdbqt
 				filelist.ligand_files.push_back(line);
+				if (filelist.ligand_files.size()>filelist.fld_files.size()){
+					// If this ligand doesnt have a protein preceding it, use the previous protein
+					filelist.fld_files.push_back(filelist.fld_files[filelist.fld_files.size()-1]);
+				}
+				prev_line_was_fld=false;
 			} else if (len>0) {
 				// Anything else in the file is assumed to be the resname
 				filelist.resnames.push_back(line);
 			}
 		}
 
-		filelist.nfiles = filelist.fld_files.size();
+		filelist.nfiles = filelist.ligand_files.size();
 
-		if (filelist.fld_files.size() != filelist.ligand_files.size())
-	        	{printf("\n\nError: Unequal number of fld and ligand files in list!"); return 1;}
-
-		if (filelist.fld_files.size() != filelist.resnames.size() && filelist.resnames.size()>0)
-	                {printf("\n\nError: Inconsistent number of resnames!"); return 1;}
+		if (filelist.ligand_files.size() != filelist.resnames.size() && filelist.resnames.size()>0)
+			{printf("\n\nError: Inconsistent number of resnames!"); return 1;}
 	}
 
 	return 0;
@@ -193,6 +202,7 @@ void get_commandpars(const int* argc,
 	mypars->num_of_generations	= 27000;
 	mypars->nev_provided		= false;
 	mypars->use_heuristics		= false; // Flag if we want to use Diogo's heuristics
+        mypars->max_num_of_energy_evals = 50000000; // By default, dont let heuristics set nev > 50M
 	mypars->abs_max_dmov		= 6.0/(*spacing);	// +/-6A
 	mypars->abs_max_dang		= 90;		// +/- 90°
 	mypars->mutation_rate		= 2;		// 2%
@@ -277,6 +287,18 @@ void get_commandpars(const int* argc,
 				mypars->use_heuristics = true;
 		}
 		// ----------------------------------
+
+		//Argument: number of energy evaluations. Must be a positive integer.
+		if (strcmp("-maxnev", argv[i]) == 0)
+		{
+			arg_recognized = 1;
+			sscanf(argv[i+1], "%ld", &tempint);
+
+			if ((tempint > 0) && (tempint < 260000000)){
+				mypars->max_num_of_energy_evals = (unsigned long) tempint;
+			} else
+				printf("Warning: value of -maxnev argument ignored. Value must be between 0 and 260000000.\n");
+		}
 
 		//Argument: maximal delta movement during mutation. Must be an integer between 1 and 16.
 		//N means that the maximal delta movement will be +/- 2^(N-10)*grid spacing angström.
