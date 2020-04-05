@@ -201,8 +201,8 @@ parameters argc and argv:
 		if (mypars->autostop) {
 			if (generation_cnt % 10 == 0) {
 				Kokkos::deep_copy(energies_h,odd_generation.energies);
-				bool finished = autostop.check_if_satisfactory(generation_cnt, energies_h.data(), total_evals);
-				if (finished) break; // Exit loop
+				if (autostop.check_if_satisfactory(generation_cnt, energies_h.data(), total_evals))
+					break; // Exit loop
 			}
 		} else {
 			//update progress bar (bar length is 50)
@@ -265,7 +265,7 @@ parameters argc and argv:
 	}
 
 	clock_t clock_stop_docking = clock();
-	if (mypars->autostop==0)
+	if (!mypars->autostop)
 	{
 		//update progress bar (bar length is 50)mem_num_of_rotatingatoms_per_rotbond_const
 		while (curr_progress_cnt < 50) {
@@ -274,7 +274,6 @@ parameters argc and argv:
 			fflush(stdout);
 		}
 	}
-	printf("\n\n");
 
 	//----------------------------- PROCESSING ------------------------------------//
 
@@ -288,6 +287,10 @@ parameters argc and argv:
 		Kokkos::deep_copy(energies_h,even_generation.energies);
 	}
 
+	// Final autostop statistics output
+	if (mypars->autostop) autostop.output_final_stddev(generation_cnt, energies_h.data(), total_evals);
+
+	printf("\n\n");
 	// Arrange results and make res files
 	for (unsigned long run_cnt=0; run_cnt < mypars->num_of_runs; run_cnt++)
 	{
