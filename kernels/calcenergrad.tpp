@@ -316,9 +316,9 @@ KOKKOS_INLINE_FUNCTION void acculumate_interintra_gradients(const member_type& t
 
                 // Intramolecular gradients were already in Angstrom,
                 // so no scaling for them is required.
-                float grad_total_x = atom_gradients(0,0,atom_cnt)/docking_params.grid_spacing;
-                float grad_total_y = atom_gradients(0,1,atom_cnt)/docking_params.grid_spacing;
-                float grad_total_z = atom_gradients(0,2,atom_cnt)/docking_params.grid_spacing;
+                float grad_total_x = atom_gradients(0,0,atom_cnt);
+                float grad_total_y = atom_gradients(0,1,atom_cnt);
+                float grad_total_z = atom_gradients(0,2,atom_cnt);
 
                 #if defined (PRINT_GRAD_ROTATION_GENES)
                 if (atom_cnt == 0) {
@@ -329,9 +329,9 @@ KOKKOS_INLINE_FUNCTION void acculumate_interintra_gradients(const member_type& t
                 printf("%10u %13.6f %13.6f %13.6f %5s %13.6f %13.6f %13.6f\n", atom_cnt, grad_total_x, grad_total_y, grad_total_z, "|", atom_gradients(1,0,atom_cnt), atom_gradients(1,1,atom_cnt), atom_gradients(1,2,atom_cnt));
                 #endif
 
-                grad_total_x += atom_gradients(1,0,atom_cnt);
-                grad_total_y += atom_gradients(1,1,atom_cnt);
-                grad_total_z += atom_gradients(1,2,atom_cnt);
+                grad_total_x += atom_gradients(1,0,atom_cnt)*docking_params.grid_spacing;
+                grad_total_y += atom_gradients(1,1,atom_cnt)*docking_params.grid_spacing;
+                grad_total_z += atom_gradients(1,2,atom_cnt)*docking_params.grid_spacing;
                 // Re-using "gradient_inter_*" for total gradient (inter+intra)
                 atom_gradients(0,0,atom_cnt) = grad_total_x;
                 atom_gradients(0,1,atom_cnt) = grad_total_y;
@@ -339,9 +339,9 @@ KOKKOS_INLINE_FUNCTION void acculumate_interintra_gradients(const member_type& t
 
                 // Re-use "gradient_intra_*" for total gradient to do reduction below
                 // - need to prepare by doing thread-wise reduction
-                atom_gradients(1,0,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(1,0,tidx))+grad_total_x; // We need to start sum from 0 but I don't want an if statement
-                atom_gradients(1,1,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(1,1,tidx))+grad_total_y;
-                atom_gradients(1,2,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(1,2,tidx))+grad_total_z;
+                atom_gradients(1,0,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(1,0,tidx)) + grad_total_x; // We need to start sum from 0 but I don't want an if statement
+                atom_gradients(1,1,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(1,0,tidx)) + grad_total_y;
+                atom_gradients(1,2,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(1,0,tidx)) + grad_total_z;
 
                 #if defined (PRINT_GRAD_ROTATION_GENES)
                 if (atom_cnt == 0) {
@@ -375,9 +375,9 @@ KOKKOS_INLINE_FUNCTION void reduce_translation_gradients(const member_type& team
                 // their corresponding gradients were calculated in the space
                 // where these genes are in Angstrom,
                 // but AutoDock-GPU translational genes are within in grids
-                gradient[0] = atom_gradients(1,0,0) * docking_params.grid_spacing;
-                gradient[1] = atom_gradients(1,1,0) * docking_params.grid_spacing;
-                gradient[2] = atom_gradients(1,2,0) * docking_params.grid_spacing;
+                gradient[0] = atom_gradients(1,0,0);
+                gradient[1] = atom_gradients(1,1,0);
+                gradient[2] = atom_gradients(1,2,0);
 
                 #if defined (PRINT_GRAD_TRANSLATION_GENES)
                 printf("\n%s\n", "----------------------------------------------------------");
@@ -410,9 +410,6 @@ KOKKOS_INLINE_FUNCTION void calc_rotation_gradients(const member_type& team_memb
                   atom_cnt < docking_params.num_of_atoms;
                   atom_cnt+= team_member.team_size()) {
                 float4struct r = calc_coords[atom_cnt] - genrot_movingvec;
-		r.x = r.x * docking_params.grid_spacing;
-		r.y = r.y * docking_params.grid_spacing;
-		r.z = r.z * docking_params.grid_spacing;
                 // Re-using "gradient_inter_*" for total gradient (inter+intra)
                 float4struct force;
                 force.x = atom_gradients(0,0,atom_cnt);
@@ -636,7 +633,7 @@ int tidx = team_member.team_rank();
                 atom_force.w = 0.0f;
 
                 float4struct torque_tor = quaternion_cross(r, atom_force);
-                float torque_on_axis = quaternion_dot(rotation_unitvec, torque_tor) * docking_params.grid_spacing; // it is cheaper to do a scalar multiplication than a vector one
+                float torque_on_axis = quaternion_dot(rotation_unitvec, torque_tor);
 
                 // Assignment of gene-based gradient
                 // - this works because a * (a_1 + a_2 + ... + a_n) = a*a_1 + a*a_2 + ... + a*a_n
