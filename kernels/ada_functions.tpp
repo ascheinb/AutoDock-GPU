@@ -29,16 +29,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #define EPSILON         1e-2
 
 template<class Device>
-KOKKOS_INLINE_FUNCTION void genotype_gradient_descent(const member_type& team_member, const DockingParams<Device>& docking_params, GenotypeAux gradient,
-			     GenotypeAux square_gradient, GenotypeAux square_delta, Genotype genotype)
+KOKKOS_INLINE_FUNCTION void genotype_gradient_descent(const DockingParams<Device>& docking_params, float* gradient,
+			     float* square_gradient, float* square_delta, float* genotype)
 {
-        // Get team and league ranks
-        int tidx = team_member.team_rank();
-        int team_size = team_member.team_size();
-
-	for(int i = tidx;
-                 i < docking_params.num_of_genes;
-                 i+= team_size) {
+	for(int i = 0; i < docking_params.num_of_genes; i++) {
 
                 // Accummulating gradient^2 (eq.8 in the paper)
                 // square_gradient corresponds to E[g^2]

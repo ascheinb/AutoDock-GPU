@@ -1,5 +1,8 @@
 #ifndef DOCKINGPARAMS_HPP
 #define DOCKINGPARAMS_HPP
+
+#include "float4struct.hpp"
+
 // Docking parameters for Kokkos implementation
 template<class Device>
 struct DockingParams
@@ -30,6 +33,9 @@ struct DockingParams
         unsigned int    num_of_lsentities;
         unsigned int    max_num_of_iters;
 
+	Kokkos::View<float4struct**,Device> calc_coords;
+	Kokkos::View<float***,Device> atom_gradients;
+
 	// Used in Solis-Wets kernel
 	float base_dmov_mul_sqrt3;
 	float base_dang_mul_sqrt3;
@@ -40,7 +46,9 @@ struct DockingParams
 	DockingParams(const Liganddata& myligand_reference, const Gridinfo* mygrid, const Dockpars* mypars)
 		: fgrids_write("fgrids_write", 4 * (mygrid->num_of_atypes+2) * (mygrid->size_xyz[0]) * (mygrid->size_xyz[1]) * (mygrid->size_xyz[2])),
 		  evals_of_new_entities("evals_of_new_entities", mypars->pop_size * mypars->num_of_runs),
-		  prng_states("prng_states",mypars->pop_size * mypars->num_of_runs * NUM_OF_THREADS_PER_BLOCK)
+		  prng_states("prng_states",mypars->pop_size * mypars->num_of_runs * NUM_OF_THREADS_PER_BLOCK),
+		  calc_coords("calc_coords",mypars->pop_size * mypars->num_of_runs, MAX_NUM_OF_ATOMS),
+		  atom_gradients("atom_gradients",mypars->pop_size * mypars->num_of_runs, 3, MAX_NUM_OF_ATOMS)
 	{
 		// Copy in scalars
 		num_of_atoms  = ((char)  myligand_reference.num_of_atoms);

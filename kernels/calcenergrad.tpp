@@ -52,13 +52,13 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "calcenergy.hpp"
 
 template<class Device>
-KOKKOS_INLINE_FUNCTION float calc_intermolecular_gradients(const int atom_id, const DockingParams<Device>& docking_params, const InterIntra<Device>& interintra, Coordinates calc_coords, AtomGradients atom_gradients)
+KOKKOS_INLINE_FUNCTION float calc_intermolecular_gradients(const int idx, const int atom_id, const DockingParams<Device>& docking_params, const InterIntra<Device>& interintra, float* gradient )
 {
 	float partial_energy=0.0f;
         float weights[8];
-	float x = calc_coords[atom_id].x;
-	float y = calc_coords[atom_id].y;
-	float z = calc_coords[atom_id].z;
+	float x = docking_params.calc_coords(idx,atom_id).x;
+	float y = docking_params.calc_coords(idx,atom_id).y;
+	float z = docking_params.calc_coords(idx,atom_id).z;
 	float q = interintra.atom_charges_const[atom_id];
 	int atom_typeid = interintra.atom_types_const[atom_id];
 
@@ -72,9 +72,9 @@ KOKKOS_INLINE_FUNCTION float calc_intermolecular_gradients(const int atom_id, co
 		// Setting gradients (forces) penalties.
 		// The idea here is to push the offending
 		// molecule towards the center rather
-		atom_gradients(0,atom_id) = 42.0f * x;
-		atom_gradients(1,atom_id) = 42.0f * y;
-		atom_gradients(2,atom_id) = 42.0f * z;
+		docking_params.atom_gradients(idx,0,atom_id) = 42.0f * x;
+		docking_params.atom_gradients(idx,1,atom_id) = 42.0f * y;
+		docking_params.atom_gradients(idx,2,atom_id) = 42.0f * z;
 		return partial_energy;
 	}
 	// Getting coordinates
@@ -135,9 +135,9 @@ KOKKOS_INLINE_FUNCTION float calc_intermolecular_gradients(const int atom_id, co
 	// Derived from autodockdev/maps.py
 	// -------------------------------------------------------------------
 	float4struct partial_gradient_inter = spatial_gradient(docking_params.fgrids, grid_ind_000+mul_tmp, dx,dy,dz, omdx,omdy,omdz);
-	atom_gradients(0,atom_id) = partial_gradient_inter.x;
-	atom_gradients(1,atom_id) = partial_gradient_inter.y;
-	atom_gradients(2,atom_id) = partial_gradient_inter.z;
+	docking_params.atom_gradients(idx,0,atom_id) = partial_gradient_inter.x;
+	docking_params.atom_gradients(idx,1,atom_id) = partial_gradient_inter.y;
+	docking_params.atom_gradients(idx,2,atom_id) = partial_gradient_inter.z;
 
 	// -------------------------------------------------------------------
 	// Calculating gradients (forces) corresponding to
@@ -152,9 +152,9 @@ KOKKOS_INLINE_FUNCTION float calc_intermolecular_gradients(const int atom_id, co
 	// Calculating affinity energy
 	partial_energy += q * trilinear_interp(docking_params.fgrids, grid_ind_000+mul_tmp, weights);
 	partial_gradient_inter = spatial_gradient(docking_params.fgrids, grid_ind_000+mul_tmp, dx,dy,dz, omdx,omdy,omdz);
-	atom_gradients(0,atom_id) += q * partial_gradient_inter.x;
-	atom_gradients(1,atom_id) += q * partial_gradient_inter.y;
-	atom_gradients(2,atom_id) += q * partial_gradient_inter.z;
+	docking_params.atom_gradients(idx,0,atom_id) += q * partial_gradient_inter.x;
+	docking_params.atom_gradients(idx,1,atom_id) += q * partial_gradient_inter.y;
+	docking_params.atom_gradients(idx,2,atom_id) += q * partial_gradient_inter.z;
 
 	// -------------------------------------------------------------------
 	// Calculating gradients (forces) corresponding to
@@ -169,15 +169,19 @@ KOKKOS_INLINE_FUNCTION float calc_intermolecular_gradients(const int atom_id, co
 	// Calculating affinity energy
 	partial_energy += q * trilinear_interp(docking_params.fgrids, grid_ind_000+mul_tmp, weights);
 	partial_gradient_inter = spatial_gradient(docking_params.fgrids, grid_ind_000+mul_tmp, dx,dy,dz, omdx,omdy,omdz);
-	atom_gradients(0,atom_id) += q * partial_gradient_inter.x;
-	atom_gradients(1,atom_id) += q * partial_gradient_inter.y;
-	atom_gradients(2,atom_id) += q * partial_gradient_inter.z;
+	docking_params.atom_gradients(idx,0,atom_id) += q * partial_gradient_inter.x;
+	docking_params.atom_gradients(idx,1,atom_id) += q * partial_gradient_inter.y;
+	docking_params.atom_gradients(idx,2,atom_id) += q * partial_gradient_inter.z;
+
+	gradient[0] += q * partial_gradient_inter.x;
+	gradient[1] += q * partial_gradient_inter.y;
+	gradient[2] += q * partial_gradient_inter.z;
 
 	return partial_energy;
 }
 
 template<class Device>
-KOKKOS_INLINE_FUNCTION float calc_intramolecular_gradients(const int contributor_counter, const DockingParams<Device>& docking_params, const IntraContrib<Device>& intracontrib, const InterIntra<Device>& interintra, const Intra<Device>& intra, Coordinates calc_coords, AtomGradients atom_gradients)
+KOKKOS_INLINE_FUNCTION float calc_intramolecular_gradients(const int idx, const int contributor_counter, const DockingParams<Device>& docking_params, const IntraContrib<Device>& intracontrib, const InterIntra<Device>& interintra, const Intra<Device>& intra )
 {
 	float partial_energy=0.0f;
         float delta_distance = 0.5f*docking_params.smooth;
@@ -193,9 +197,9 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_gradients(const int contributor
 
 	// Calculating vector components of vector going
 	// from first atom's to second atom's coordinates
-	float subx = calc_coords[atom1_id].x - calc_coords[atom2_id].x;
-	float suby = calc_coords[atom1_id].y - calc_coords[atom2_id].y;
-	float subz = calc_coords[atom1_id].z - calc_coords[atom2_id].z;
+	float subx = docking_params.calc_coords(idx,atom1_id).x - docking_params.calc_coords(idx,atom2_id).x;
+	float suby = docking_params.calc_coords(idx,atom1_id).y - docking_params.calc_coords(idx,atom2_id).y;
+	float subz = docking_params.calc_coords(idx,atom1_id).z - docking_params.calc_coords(idx,atom2_id).z;
 
 	// Calculating atomic_distance
 	float dist = sqrt(subx*subx + suby*suby + subz*subz);
@@ -291,42 +295,20 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_gradients(const int contributor
 	// Calculating gradients in xyz components.
 	// Gradients for both atoms in a single contributor pair
 	// have the same magnitude, but opposite directions
-	Kokkos::atomic_add(&(atom_gradients(0,atom1_id)), -priv_intra_gradient_x);
-	Kokkos::atomic_add(&(atom_gradients(1,atom1_id)), -priv_intra_gradient_y);
-	Kokkos::atomic_add(&(atom_gradients(2,atom1_id)), -priv_intra_gradient_z);
+	docking_params.atom_gradients(idx,0,atom1_id)-= priv_intra_gradient_x;
+	docking_params.atom_gradients(idx,1,atom1_id)-= priv_intra_gradient_y;
+	docking_params.atom_gradients(idx,2,atom1_id)-= priv_intra_gradient_z;
 
-	Kokkos::atomic_add(&(atom_gradients(0,atom2_id)), priv_intra_gradient_x);
-	Kokkos::atomic_add(&(atom_gradients(1,atom2_id)), priv_intra_gradient_y);
-	Kokkos::atomic_add(&(atom_gradients(2,atom2_id)), priv_intra_gradient_z);
+	docking_params.atom_gradients(idx,0,atom2_id)+= priv_intra_gradient_x;
+	docking_params.atom_gradients(idx,1,atom2_id)+= priv_intra_gradient_y;
+	docking_params.atom_gradients(idx,2,atom2_id)+= priv_intra_gradient_z;
 
 	return partial_energy;
 }
 
 template<class Device>
-KOKKOS_INLINE_FUNCTION void reduce_translation_gradients(const member_type& team_member, const DockingParams<Device>& docking_params, AtomGradients atom_gradients, GenotypeAux gradient)
+KOKKOS_INLINE_FUNCTION void calc_rotation_gradients(const int idx, const DockingParams<Device>& docking_params, const AxisCorrection<Device>& axis_correction,float4struct& genrot_movingvec, float4struct& genrot_unitvec, const float phi, const float theta, const float genrotangle, const float sign_of_sin_theta, float* gradient)
 {
-	int tidx = team_member.team_rank();
-	float gradient0, gradient1, gradient2;
-        // loop over atoms and parallel reduce to assign each gradient
-	Kokkos::parallel_reduce (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-		[=] (int& idx, float& gradient0) { gradient0 += atom_gradients(0,idx); }, gradient0);
-	Kokkos::parallel_reduce (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-		[=] (int& idx, float& gradient0) { gradient0 += atom_gradients(1,idx); }, gradient1);
-	Kokkos::parallel_reduce (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-		[=] (int& idx, float& gradient0) { gradient0 += atom_gradients(2,idx); }, gradient2);
-
-        if (tidx == 0) {
-                gradient[0] = gradient0;
-                gradient[1] = gradient1;
-                gradient[2] = gradient2;
-        }
-}
-
-
-template<class Device>
-KOKKOS_INLINE_FUNCTION void calc_rotation_gradients(const member_type& team_member, const DockingParams<Device>& docking_params, const AxisCorrection<Device>& axis_correction,float4struct& genrot_movingvec, float4struct& genrot_unitvec, Coordinates calc_coords, const float phi, const float theta, const float genrotangle, const float sign_of_sin_theta, AtomGradients atom_gradients, GenotypeAux gradient)
-{
-	int tidx = team_member.team_rank();
 	// Transform gradients_inter_{x|y|z}
         // into local_gradients[i] (with four quaternion genes)
         // Derived from autodockdev/motions.py/forces_to_delta_genes()
@@ -336,266 +318,197 @@ KOKKOS_INLINE_FUNCTION void calc_rotation_gradients(const member_type& team_memb
         // Derived from autodockdev/motions.py/_get_cube3_gradient()
         // ------------------------------------------
 
-        // Repurpose atom_gradients with torque values
-        for (int atom_cnt = tidx;
-                  atom_cnt < docking_params.num_of_atoms;
-                  atom_cnt+= team_member.team_size()) {
-                float4struct r = calc_coords[atom_cnt] - genrot_movingvec;
+        float4struct torque_rot;
+	torque_rot.x = 0;
+	torque_rot.y = 0;
+	torque_rot.z = 0;
+        for (int atom_cnt = 0; atom_cnt < docking_params.num_of_atoms; atom_cnt++){
+                float4struct r = docking_params.calc_coords(idx,atom_cnt) - genrot_movingvec;
                 // Re-using "gradient_inter_*" for total gradient (inter+intra)
                 float4struct force;
-                force.x = atom_gradients(0,atom_cnt);
-                force.y = atom_gradients(1,atom_cnt);
-                force.z = atom_gradients(2,atom_cnt);
+                force.x = docking_params.atom_gradients(idx,0,atom_cnt);
+                force.y = docking_params.atom_gradients(idx,1,atom_cnt);
+                force.z = docking_params.atom_gradients(idx,2,atom_cnt);
                 force.w = 0.0;
-                float4struct torque_rot = quaternion_cross(r, force);
-		// Overwrite gradients after using them
-                atom_gradients(0,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(0,tidx)) + torque_rot.x;
-                atom_gradients(1,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(1,tidx)) + torque_rot.y;
-                atom_gradients(2,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(2,tidx)) + torque_rot.z;
+                float4struct torque_rot_tmp = quaternion_cross(r, force);
+		torque_rot.x += torque_rot_tmp.x;
+		torque_rot.y += torque_rot_tmp.y;
+		torque_rot.z += torque_rot_tmp.z;
         }
-        // do a reduction over the total gradient containing prepared "gradient_intra_*" values
-        for (int off=(team_member.team_size())>>1; off>0; off >>= 1)
-        {
-                team_member.team_barrier();
-                if (tidx < off)
-                {
-                        atom_gradients(0,tidx) += atom_gradients(0,tidx+off);
-                        atom_gradients(1,tidx) += atom_gradients(1,tidx+off);
-                        atom_gradients(2,tidx) += atom_gradients(2,tidx+off);
-                }
-        }
-        if (tidx == 0) {
-                float4struct torque_rot;
-                torque_rot.x = atom_gradients(0,0);
-                torque_rot.y = atom_gradients(1,0);
-                torque_rot.z = atom_gradients(2,0);
 
-                // Derived from rotation.py/axisangle_to_q()
-                // genes[3:7] = rotation.axisangle_to_q(torque, rad)
-                float torque_length = quaternion_length(torque_rot);
-		torque_length += (torque_length<1e-20)*1e-20; // In case torque is 0
-		float inv_torque_len_SHIR = (SIN_HALF_INFINITESIMAL_RADIAN / torque_length);
+	// Derived from rotation.py/axisangle_to_q()
+	// genes[3:7] = rotation.axisangle_to_q(torque, rad)
+	float torque_length = quaternion_length(torque_rot);
+	torque_length += (torque_length<1e-20)*1e-20; // In case torque is 0
+	float inv_torque_len_SHIR = (SIN_HALF_INFINITESIMAL_RADIAN / torque_length);
 
-                // Infinitesimal rotation in radians
-                //const float infinitesimal_radian = 1E-5;
+	// Infinitesimal rotation in radians
+	//const float infinitesimal_radian = 1E-5;
 
-                // Finding the quaternion that performs
-                // the infinitesimal rotation around torque axis
-                float4struct quat_torque;
-		quat_torque.x = torque_rot.x * inv_torque_len_SHIR;
-                quat_torque.y = torque_rot.y * inv_torque_len_SHIR;
-                quat_torque.z = torque_rot.z * inv_torque_len_SHIR;
-                quat_torque.w = COS_HALF_INFINITESIMAL_RADIAN;
+	// Finding the quaternion that performs
+	// the infinitesimal rotation around torque axis
+	float4struct quat_torque;
+	quat_torque.x = torque_rot.x * inv_torque_len_SHIR;
+	quat_torque.y = torque_rot.y * inv_torque_len_SHIR;
+	quat_torque.z = torque_rot.z * inv_torque_len_SHIR;
+	quat_torque.w = COS_HALF_INFINITESIMAL_RADIAN;
 
-                // This is where we want to be in quaternion space
-                // target_q = rotation.q_mult(q, current_q)
-                float4struct target_q = quaternion_multiply(quat_torque, genrot_unitvec);
+	// This is where we want to be in quaternion space
+	// target_q = rotation.q_mult(q, current_q)
+	float4struct target_q = quaternion_multiply(quat_torque, genrot_unitvec);
 
-                #if defined (PRINT_GRAD_ROTATION_GENES)
-		printf("\n%s\n", "----------------------------------------------------------");
-                printf("%-20s %-10.6f %-10.6f %-10.6f\n", "final torque: ", torque_rot.x, torque_rot.y, torque_rot.z);
-                printf("%-20s %-10.6f\n", "torque length: ", torque_length);
-                printf("%-20s %-10.6f\n", "INFINITESIMAL_RADIAN: ", INFINITESIMAL_RADIAN);
-                printf("%-20s %-10.6f %-10.6f %-10.6f %-10.6f\n", "quat_torque (w,x,y,z): ", quat_torque.w, quat_torque.x, quat_torque.y, quat_torque.z);
+	// This is where we are in the orientation axis-angle space
+	// Equivalent to "current_oclacube" in autodockdev/motions.py
+	float current_phi      = fmod_two_pi(PI_TIMES_2 + phi);
+	float current_theta    = fmod_two_pi(PI_TIMES_2 + theta);
+	float current_rotangle = fmod_two_pi(PI_TIMES_2 + genrotangle);
 
-                // Converting quaternion gradients into orientation gradients
-                // Derived from autodockdev/motion.py/_get_cube3_gradient
-                printf("%-30s %-10.6f %-10.6f %-10.6f %-10.6f\n", "current_q (w,x,y,z): ", genrot_unitvec.w, genrot_unitvec.x, genrot_unitvec.y, genrot_unitvec.z);
-                printf("%-30s %-10.6f %-10.6f %-10.6f %-10.6f\n", "target_q (w,x,y,z): ", target_q.w, target_q.x, target_q.y, target_q.z);
-                #endif
+	// This is where we want to be in the orientation axis-angle space
+	float target_phi, target_theta, target_rotangle;
 
-		// This is where we are in the orientation axis-angle space
-                // Equivalent to "current_oclacube" in autodockdev/motions.py
-                float current_phi      = fmod_two_pi(PI_TIMES_2 + phi);
-                float current_theta    = fmod_two_pi(PI_TIMES_2 + theta);
-                float current_rotangle = fmod_two_pi(PI_TIMES_2 + genrotangle);
+	// target_oclacube = quaternion_to_oclacube(target_q, theta_larger_than_pi)
+	// Derived from autodockdev/motions.py/quaternion_to_oclacube()
+	// In our terms means quaternion_to_oclacube(target_q{w|x|y|z}, theta_larger_than_pi)
+	target_rotangle = 2.0f * fast_acos(target_q.w); // = 2.0f * ang;
+	float sin_ang = sqrt(1.0f-target_q.w*target_q.w); // = native_sin(ang);
 
-                // This is where we want to be in the orientation axis-angle space
-                float target_phi, target_theta, target_rotangle;
+	target_theta = PI_TIMES_2 + sign_of_sin_theta * fast_acos( target_q.z / sin_ang );
+	target_phi   = fmod_two_pi((atan2( sign_of_sin_theta*target_q.y, sign_of_sin_theta*target_q.x) + PI_TIMES_2));
 
-                // target_oclacube = quaternion_to_oclacube(target_q, theta_larger_than_pi)
-                // Derived from autodockdev/motions.py/quaternion_to_oclacube()
-                // In our terms means quaternion_to_oclacube(target_q{w|x|y|z}, theta_larger_than_pi)
-                target_rotangle = 2.0f * fast_acos(target_q.w); // = 2.0f * ang;
-                float sin_ang = sqrt(1.0f-target_q.w*target_q.w); // = native_sin(ang);
+	// The infinitesimal rotation will produce an infinitesimal displacement
+	// in shoemake space. This is to guarantee that the direction of
+	// the displacement in shoemake space is not distorted.
+	// The correct amount of displacement in shoemake space is obtained
+	// by multiplying the infinitesimal displacement by shoemake_scaling:
+	//float shoemake_scaling = native_divide(torque_length, INFINITESIMAL_RADIAN/*infinitesimal_radian*/);
+	float orientation_scaling = torque_length * INV_INFINITESIMAL_RADIAN;
 
-                target_theta = PI_TIMES_2 + sign_of_sin_theta * fast_acos( target_q.z / sin_ang );
-                target_phi   = fmod_two_pi((atan2( sign_of_sin_theta*target_q.y, sign_of_sin_theta*target_q.x) + PI_TIMES_2));
+	// Derivates in cube3
+	float grad_phi, grad_theta, grad_rotangle;
+	grad_phi      = orientation_scaling * (fmod_two_pi(target_phi      - current_phi      + PI_FLOAT) - PI_FLOAT);
+	grad_theta    = orientation_scaling * (fmod_two_pi(target_theta    - current_theta    + PI_FLOAT) - PI_FLOAT);
+	grad_rotangle = orientation_scaling * (fmod_two_pi(target_rotangle - current_rotangle + PI_FLOAT) - PI_FLOAT);
 
-                // The infinitesimal rotation will produce an infinitesimal displacement
-                // in shoemake space. This is to guarantee that the direction of
-                // the displacement in shoemake space is not distorted.
-                // The correct amount of displacement in shoemake space is obtained
-                // by multiplying the infinitesimal displacement by shoemake_scaling:
-                //float shoemake_scaling = native_divide(torque_length, INFINITESIMAL_RADIAN/*infinitesimal_radian*/);
-                float orientation_scaling = torque_length * INV_INFINITESIMAL_RADIAN;
+	// Correcting theta gradients interpolating
+	// values from correction look-up-tables
+	// (X0,Y0) and (X1,Y1) are known points
+	// How to find the Y value in the straight line between Y0 and Y1,
+	// corresponding to a certain X?
+	/*
+		| dependence_on_theta_const
+		| dependence_on_rotangle_const
+		|
+		|
+		|                        Y1
+		|
+		|             Y=?
+		|    Y0
+		|_________________________________ angle_const
+		     X0         X        X1
+	*/
 
-                // Derivates in cube3
-                float grad_phi, grad_theta, grad_rotangle;
-                grad_phi      = orientation_scaling * (fmod_two_pi(target_phi      - current_phi      + PI_FLOAT) - PI_FLOAT);
-                grad_theta    = orientation_scaling * (fmod_two_pi(target_theta    - current_theta    + PI_FLOAT) - PI_FLOAT);
-                grad_rotangle = orientation_scaling * (fmod_two_pi(target_rotangle - current_rotangle + PI_FLOAT) - PI_FLOAT);
+	// Finding the index-position of "grad_delta" in the "angle_const" array
+	int index_theta    = floor((current_theta    - axis_correction.angle(0)) * inv_angle_delta);
+	int index_rotangle = floor((current_rotangle - axis_correction.angle(0)) * inv_angle_delta);
 
-                #if defined (PRINT_GRAD_ROTATION_GENES)
-		printf("\n%s\n", "----------------------------------------------------------");
-                printf("%-30s %-10.6f %-10.6f %-10.6f\n", "target_axisangle (1,2,3): ", target_phi, target_theta, target_rotangle);
-                printf("%-30s %-10.6f\n", "orientation_scaling: ", orientation_scaling);
-                printf("%-30s \n", "grad_axisangle (1,2,3) - before empirical scaling: ");
-                printf("%-13s %-13s %-13s \n", "grad_phi", "grad_theta", "grad_rotangle");
-                printf("%-13.6f %-13.6f %-13.6f\n", grad_phi, grad_theta, grad_rotangle);
-                #endif
+	// Interpolating theta values
+	// X0 -> index - 1
+	// X1 -> index + 1
+	// Expresed as weighted average:
+	// Y = [Y0 * ((X1 - X) / (X1-X0))] +  [Y1 * ((X - X0) / (X1-X0))]
+	// Simplified for GPU (less terms):
+	// Y = [Y0 * (X1 - X) + Y1 * (X - X0)] / (X1 - X0)
+	// Taking advantage of constant:
+	// Y = [Y0 * (X1 - X) + Y1 * (X - X0)] * inv_angle_delta
 
-                // Correcting theta gradients interpolating
-                // values from correction look-up-tables
-                // (X0,Y0) and (X1,Y1) are known points
-                // How to find the Y value in the straight line between Y0 and Y1,
-                // corresponding to a certain X?
-		/*
-                        | dependence_on_theta_const
-                        | dependence_on_rotangle_const
-                        |
-                        |
-                        |                        Y1
-                        |
-                        |             Y=?
-                        |    Y0
-                        |_________________________________ angle_const
-                             X0         X        X1
-                */
+	float X0, Y0;
+	float X1, Y1;
+	float dependence_on_theta;      //Y = dependence_on_theta
 
-                // Finding the index-position of "grad_delta" in the "angle_const" array
-                int index_theta    = floor((current_theta    - axis_correction.angle(0)) * inv_angle_delta);
-                int index_rotangle = floor((current_rotangle - axis_correction.angle(0)) * inv_angle_delta);
+	// Using interpolation on out-of-bounds elements results in hang
+	if ((index_theta <= 0) || (index_theta >= 999)) {
+		dependence_on_theta = axis_correction.dependence_on_theta(stick_to_bounds(index_theta,0,999));
+	} else {
+		X0 = axis_correction.angle(index_theta);
+		X1 = axis_correction.angle(index_theta+1);
+		Y0 = axis_correction.dependence_on_theta(index_theta);
+		Y1 = axis_correction.dependence_on_theta(index_theta+1);
+		dependence_on_theta = (Y0 * (X1-current_theta) + Y1 * (current_theta-X0)) * inv_angle_delta;
+	}
 
-                // Interpolating theta values
-                // X0 -> index - 1
-                // X1 -> index + 1
-                // Expresed as weighted average:
-                // Y = [Y0 * ((X1 - X) / (X1-X0))] +  [Y1 * ((X - X0) / (X1-X0))]
-                // Simplified for GPU (less terms):
-                // Y = [Y0 * (X1 - X) + Y1 * (X - X0)] / (X1 - X0)
-                // Taking advantage of constant:
-                // Y = [Y0 * (X1 - X) + Y1 * (X - X0)] * inv_angle_delta
+	// Interpolating rotangle values
+	float dependence_on_rotangle;   //Y = dependence_on_rotangle
+	// Using interpolation on previous and/or next elements results in hang
+	// Using interpolation on out-of-bounds elements results in hang
+	if ((index_rotangle <= 0) || (index_rotangle >= 999)) {
+		dependence_on_rotangle = axis_correction.dependence_on_rotangle(stick_to_bounds(index_rotangle,0,999));
+	} else {
+		X0 = axis_correction.angle(index_rotangle);
+		X1 = axis_correction.angle(index_rotangle+1);
+		Y0 = axis_correction.dependence_on_rotangle(index_rotangle);
+		Y1 = axis_correction.dependence_on_rotangle(index_rotangle+1);
+		dependence_on_rotangle = (Y0 * (X1-current_rotangle) + Y1 * (current_rotangle-X0)) * inv_angle_delta;
+	}
 
-                float X0, Y0;
-                float X1, Y1;
-                float dependence_on_theta;      //Y = dependence_on_theta
-
-                // Using interpolation on out-of-bounds elements results in hang
-                if ((index_theta <= 0) || (index_theta >= 999))
-                {
-                        dependence_on_theta = axis_correction.dependence_on_theta(stick_to_bounds(index_theta,0,999));
-                } else
-                {
-                        X0 = axis_correction.angle(index_theta);
-                        X1 = axis_correction.angle(index_theta+1);
-                        Y0 = axis_correction.dependence_on_theta(index_theta);
-                        Y1 = axis_correction.dependence_on_theta(index_theta+1);
-                        dependence_on_theta = (Y0 * (X1-current_theta) + Y1 * (current_theta-X0)) * inv_angle_delta;
-                }
-
-                // Interpolating rotangle values
-                float dependence_on_rotangle;   //Y = dependence_on_rotangle
-                // Using interpolation on previous and/or next elements results in hang
-                // Using interpolation on out-of-bounds elements results in hang
-                if ((index_rotangle <= 0) || (index_rotangle >= 999))
-                {
-                        dependence_on_rotangle = axis_correction.dependence_on_rotangle(stick_to_bounds(index_rotangle,0,999));
-                } else
-                {
-                        X0 = axis_correction.angle(index_rotangle);
-                        X1 = axis_correction.angle(index_rotangle+1);
-                        Y0 = axis_correction.dependence_on_rotangle(index_rotangle);
-                        Y1 = axis_correction.dependence_on_rotangle(index_rotangle+1);
-                        dependence_on_rotangle = (Y0 * (X1-current_rotangle) + Y1 * (current_rotangle-X0)) * inv_angle_delta;
-                }
-
-                // Setting gradient rotation-related genotypes in cube
-                // Multiplicating by DEG_TO_RAD is to make it uniform to DEG (see torsion gradients)
-                gradient[3] = (grad_phi / (dependence_on_theta * dependence_on_rotangle))  * DEG_TO_RAD;
-                gradient[4] = (grad_theta / dependence_on_rotangle)                        * DEG_TO_RAD;
-                gradient[5] = grad_rotangle                                                * DEG_TO_RAD;
-                #if defined (PRINT_GRAD_ROTATION_GENES)
-		printf("\n%s\n", "----------------------------------------------------------");
-                printf("%-30s %-10.6f\n", "dependence_on_theta: ", dependence_on_theta);
-                printf("%-30s %-10.6f\n", "dependence_on_rotangle: ", dependence_on_rotangle);
-                printf("\n%s\n", "----------------------------------------------------------");
-                printf("%-30s \n", "grad_axisangle (1,2,3) - after empirical scaling: ");
-                printf("%-13s %-13s %-13s \n", "grad_phi", "grad_theta", "grad_rotangle");
-                printf("%-13.6f %-13.6f %-13.6f\n", gradient[3], gradient[4], gradient[5]);
-                #endif
-        }
+	// Setting gradient rotation-related genotypes in cube
+	// Multiplicating by DEG_TO_RAD is to make it uniform to DEG (see torsion gradients)
+	gradient[3] = (grad_phi / (dependence_on_theta * dependence_on_rotangle))  * DEG_TO_RAD;
+	gradient[4] = (grad_theta / dependence_on_rotangle)                        * DEG_TO_RAD;
+	gradient[5] = grad_rotangle                                                * DEG_TO_RAD;
 }
 
 
 template<class Device>
-KOKKOS_INLINE_FUNCTION void calc_torsion_gradients(const member_type& team_member, const DockingParams<Device>& docking_params, const Grads<Device>& grads, Coordinates calc_coords, AtomGradients atom_gradients, GenotypeAux gradient)
+KOKKOS_INLINE_FUNCTION void calc_torsion_gradients(const int idx, const int i_atom, const DockingParams<Device>& docking_params, const Grads<Device>& grads, float* gradient)
 {
-int tidx = team_member.team_rank();
-	int num_torsion_genes = docking_params.num_of_genes-6;
-        for (int idx = tidx;
-                  idx < num_torsion_genes * docking_params.num_of_atoms;
-                  idx += team_member.team_size()) {
+	for (int rotbond_id = 0; rotbond_id < (docking_params.num_of_genes-6); rotbond_id++){
+		if (i_atom>= grads.num_rotating_atoms_per_rotbond(rotbond_id))
+			continue; // Nothing to do
 
-                int rotable_atom_cnt = idx / num_torsion_genes;
-                int rotbond_id = idx - rotable_atom_cnt * num_torsion_genes; // this is a bit cheaper than % (modulo)
+		// Querying ids of atoms belonging to the rotatable bond in question
+		int atom1_id = grads.rotbonds(2*rotbond_id);
+		int atom2_id = grads.rotbonds(2*rotbond_id+1);
 
-                if (rotable_atom_cnt >= grads.num_rotating_atoms_per_rotbond(rotbond_id))
-                        continue; // Nothing to do
+		float4struct atomRef_coords = docking_params.calc_coords(idx,atom1_id);
+		float4struct rotation_unitvec = quaternion_normalize(docking_params.calc_coords(idx,atom2_id) - atomRef_coords);
 
-                // Querying ids of atoms belonging to the rotatable bond in question
-                int atom1_id = grads.rotbonds(2*rotbond_id);
-                int atom2_id = grads.rotbonds(2*rotbond_id+1);
+		// Torque of torsions
+		int lig_atom_id = grads.rotbonds_atoms(MAX_NUM_OF_ATOMS*rotbond_id + i_atom);
 
-                float4struct atomRef_coords = calc_coords(atom1_id);
-                float4struct rotation_unitvec = quaternion_normalize(calc_coords(atom2_id) - atomRef_coords);
+		// Calculating torque on point "A"
+		// They are converted back to Angstroms here
+		float4struct r = docking_params.calc_coords(idx,lig_atom_id) - atomRef_coords;
 
-                // Torque of torsions
-                int lig_atom_id = grads.rotbonds_atoms(MAX_NUM_OF_ATOMS*rotbond_id + rotable_atom_cnt);
-
-                // Calculating torque on point "A"
-                // They are converted back to Angstroms here
-                float4struct r = calc_coords(lig_atom_id) - atomRef_coords;
-
-                // Re-using "gradient_inter_*" for total gradient (inter+intra)
+		// Re-using "gradient_inter_*" for total gradient (inter+intra)
 		float4struct atom_force;
-                atom_force.x = atom_gradients(0,lig_atom_id);
-                atom_force.y = atom_gradients(1,lig_atom_id);
-                atom_force.z = atom_gradients(2,lig_atom_id);
-                atom_force.w = 0.0f;
+		atom_force.x = docking_params.atom_gradients(idx,0,lig_atom_id);
+		atom_force.y = docking_params.atom_gradients(idx,1,lig_atom_id);
+		atom_force.z = docking_params.atom_gradients(idx,2,lig_atom_id);
+		atom_force.w = 0.0f;
 
-                float4struct torque_tor = quaternion_cross(r, atom_force);
-                float torque_on_axis = quaternion_dot(rotation_unitvec, torque_tor);
+		float4struct torque_tor = quaternion_cross(r, atom_force);
+		float torque_on_axis = quaternion_dot(rotation_unitvec, torque_tor);
 
-                // Assignment of gene-based gradient
-                // - this works because a * (a_1 + a_2 + ... + a_n) = a*a_1 + a*a_2 + ... + a*a_n
-		Kokkos::atomic_add(&(gradient(rotbond_id+6)), torque_on_axis * DEG_TO_RAD);
+		// Assignment of gene-based gradient
+		// - this works because a * (a_1 + a_2 + ... + a_n) = a*a_1 + a*a_2 + ... + a*a_n
+		gradient[rotbond_id+6] += torque_on_axis * DEG_TO_RAD;
 	}
 }
 
 
 template<class Device>
-KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const DockingParams<Device>& docking_params,Genotype genotype,const Constants<Device>& consts, Coordinates calc_coords, AtomGradients atom_gradients, float& energy, GenotypeAux gradient)
+KOKKOS_INLINE_FUNCTION void calc_energrad(const int idx, const DockingParams<Device>& docking_params,float* genotype,const Constants<Device>& consts, float& energy, float* gradient)
 {
-        // Get team and league ranks
-        int tidx = team_member.team_rank();
-        int lidx = team_member.league_rank();
-
-        // Determine which run this team is doing - note this is a floor since integer division
-        int run_id = lidx / docking_params.num_of_lsentities;
-
-        team_member.team_barrier();
+	int run_id = idx / docking_params.num_of_lsentities;
 
 	// Initializing gradient genotypes
-        for (int gene_cnt = tidx; gene_cnt < docking_params.num_of_genes; gene_cnt+= team_member.team_size()) {
+        for (int gene_cnt = 0; gene_cnt < docking_params.num_of_genes; gene_cnt++ ) {
                 gradient[gene_cnt] = 0.0f;
         }
 
 	// GETTING ATOMIC POSITIONS
-	Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-	[=] (int& idx) {
-		get_atom_pos(idx, consts.conform, calc_coords);
-	});
+	for (int i_atom = 0; i_atom < (int)(docking_params.num_of_atoms); i_atom++)
+		get_atom_pos(idx, i_atom, consts.conform, docking_params);
 
 	// CALCULATING ATOMIC POSITIONS AFTER ROTATIONS
 	// General rotation moving vector
@@ -619,63 +532,33 @@ KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const 
 	genrot_unitvec.w = cos(genrotangle*0.5f);
 	float sign_of_sin_theta = 1.0-2.0*(float)(sin_angle < 0.0f); // WTF - ALS
 
-	team_member.team_barrier();
-
 	// Loop over the rot bond list and carry out all the rotations
-	Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, docking_params.rotbondlist_length),
-	[=] (int& idx) {
-		rotate_atoms(idx, consts.conform, consts.rotlist, run_id, genotype, genrot_movingvec, genrot_unitvec, calc_coords);
-		team_member.team_barrier();
-	});
-
-	team_member.team_barrier();
+	for (int i_rotbond = 0; i_rotbond < docking_params.rotbondlist_length; i_rotbond++)
+		rotate_atoms(idx, i_rotbond, consts.conform, consts.rotlist, run_id, genotype, genrot_movingvec, genrot_unitvec, docking_params);
 
 	// CALCULATING INTERMOLECULAR ENERGY AND GRADIENTS
-	// Note - reduction is on energy, atom_gradients is reduced manually below
-	float energy_inter;
+	energy=0.0f;
         // loop over atoms
-        Kokkos::parallel_reduce (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-                        [=] (int& idx, float& l_energy_inter) {
-                l_energy_inter += calc_intermolecular_gradients(idx, docking_params, consts.interintra, calc_coords, atom_gradients);
-        }, energy_inter);
-
-	team_member.team_barrier();
+        for (int i_atom = 0; i_atom < (int)(docking_params.num_of_atoms); i_atom++)
+                energy += calc_intermolecular_gradients(idx, i_atom, docking_params, consts.interintra, gradient );
 
 	// CALCULATING INTRAMOLECULAR ENERGY AND GRADIENTS
-	// Note - reduction is on energy, atom_gradients is reduced manually below
-	float energy_intra;
+	// Note - reduction is on energy, docking_params.atom_gradients is reduced manually below
         // loop over intraE contributors
-        Kokkos::parallel_reduce (Kokkos::TeamThreadRange (team_member, docking_params.num_of_intraE_contributors),
-                        [=] (int& idx, float& l_energy_intra) {
-                l_energy_intra += calc_intramolecular_gradients(idx, docking_params, consts.intracontrib, consts.interintra, consts.intra, calc_coords, atom_gradients);
-        }, energy_intra);
-
-	team_member.team_barrier();
-
-	// Get total energy
-	energy = energy_inter + energy_intra;
-
-	// Get total translation gradients and assign to gradients 0,1,2
-	reduce_translation_gradients(team_member, docking_params, atom_gradients, gradient);
+        for (int i_contrib = 0; i_contrib < docking_params.num_of_intraE_contributors; i_contrib++)
+                energy += calc_intramolecular_gradients(idx, i_contrib, docking_params, consts.intracontrib, consts.interintra, consts.intra );
 
 	// Obtaining torsion-related gradients 6+
-	calc_torsion_gradients(team_member, docking_params, consts.grads, calc_coords, atom_gradients, gradient);
-
-	team_member.team_barrier(); // Barrier needed since atom_gradients gets repurposed in calc_rotation_gradients
+	for (int i_atom = 0; i_atom < (int)(docking_params.num_of_atoms); i_atom++)
+		calc_torsion_gradients(idx, i_atom, docking_params, consts.grads, gradient);
 
 	// Obtaining rotation-related gradients 3,4,5
-	calc_rotation_gradients(team_member, docking_params, consts.axis_correction,genrot_movingvec, genrot_unitvec, calc_coords, phi, theta, genrotangle, sign_of_sin_theta, atom_gradients, gradient);
+	calc_rotation_gradients(idx, docking_params, consts.axis_correction,genrot_movingvec, genrot_unitvec, phi, theta, genrotangle, sign_of_sin_theta, gradient);
 
 
 #if defined (CONVERT_INTO_ANGSTROM_RADIAN)
-	team_member.team_barrier();
-
-        for (int gene_cnt = tidx+3; // Only for gene_cnt > 2 means start gene_cnt at 3
-                  gene_cnt < docking_params.num_of_genes;
-                  gene_cnt+= team_member.team_size()) {
+        for (int gene_cnt = 3; gene_cnt < docking_params.num_of_genes; gene_cnt++ ) { // Only for gene_cnt > 2 means start gene_cnt at 3
                 gradient[gene_cnt] *= SCFACTOR_ANGSTROM_RADIAN;
         }
 #endif
-
-	team_member.team_barrier();
 }

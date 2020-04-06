@@ -67,3 +67,47 @@ KOKKOS_INLINE_FUNCTION float rand_float(const member_type& team_member, const Do
 
         return state;
 }
+
+template<class Device>
+KOKKOS_INLINE_FUNCTION unsigned int my_rand(const int gidx, const DockingParams<Device>& docking_params)
+//The GPU device function generates a random int
+//with a linear congruential generator.
+//Each thread (supposing num_of_runs*pop_size blocks and NUM_OF_THREADS_PER_BLOCK threads per block)
+//has its own state which is stored in the global memory area pointed by
+//prng_states (thread with ID tx in block with ID bx stores its state in prng_states[bx*NUM_OF_THREADS_PER_BLOCK+$
+//The random number generator uses the gcc linear congruential generator constants.
+{
+        unsigned int state;
+
+#if defined (REPRO)
+        state = 1;
+#else
+        // Current state of the threads own PRNG
+        state = docking_params.prng_states(gidx);
+
+        // Calculating next state
+        state = (RAND_A*state+RAND_C);
+#endif
+        // Saving next state to memory
+        // prng_states[get_group_id(0)*NUM_OF_THREADS_PER_BLOCK + get_local_id(0)] = state;
+        docking_params.prng_states(gidx) = state;
+
+        return state;
+}
+
+template<class Device>
+KOKKOS_INLINE_FUNCTION float rand_float(const int idx, const DockingParams<Device>& docking_params)
+        //The GPU device function generates a
+//random float greater than (or equal to) 0 and less than 1.
+{
+        float state;
+
+        // State will be between 0 and 1
+#if defined (REPRO)
+        state = 0.55f; //0.55f;
+#else
+        state =  (my_rand(idx, docking_params)/MAX_UINT)*0.999999f;
+#endif
+
+        return state;
+}

@@ -50,4 +50,31 @@ KOKKOS_INLINE_FUNCTION void copy_genotype(const member_type& team_member, const 
         });
 }
 
+
+/*** Copies without hierarchical parallelism ***/
+
+// global to local copy
+template<class Device>
+KOKKOS_INLINE_FUNCTION void copy_genotype(const int genotype_length, float* genotype, const Generation<Device>& generation, int which_pop)
+{
+        int offset = GENOTYPE_LENGTH_IN_GLOBMEM*which_pop;
+        for (int idx=0; idx<genotype_length; idx++)
+                genotype[idx] = generation.conformations(offset + idx);
+}
+
+// local to global copy
+template<class Device>
+KOKKOS_INLINE_FUNCTION void copy_genotype(const int genotype_length, const Generation<Device>& generation, int which_pop, float* genotype)
+{
+        int offset = GENOTYPE_LENGTH_IN_GLOBMEM*which_pop;
+	for (int idx=0; idx<genotype_length; idx++)
+                generation.conformations(offset + idx) = genotype[idx];
+}
+
+// local to local copy - note, not a template because Device isnt present.
+KOKKOS_INLINE_FUNCTION void copy_genotype(const int genotype_length, float* genotype_copy, float* genotype)
+{
+	for (int idx=0; idx<genotype_length; idx++)
+                genotype_copy[idx] = genotype[idx];
+}
 #endif
