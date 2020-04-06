@@ -72,9 +72,9 @@ KOKKOS_INLINE_FUNCTION float calc_intermolecular_gradients(const int atom_id, co
 		// Setting gradients (forces) penalties.
 		// The idea here is to push the offending
 		// molecule towards the center rather
-		atom_gradients(0,0,atom_id) += 42.0f * x;
-		atom_gradients(0,1,atom_id) += 42.0f * y;
-		atom_gradients(0,2,atom_id) += 42.0f * z;
+		atom_gradients(0,atom_id) = 42.0f * x;
+		atom_gradients(1,atom_id) = 42.0f * y;
+		atom_gradients(2,atom_id) = 42.0f * z;
 		return partial_energy;
 	}
 	// Getting coordinates
@@ -135,9 +135,9 @@ KOKKOS_INLINE_FUNCTION float calc_intermolecular_gradients(const int atom_id, co
 	// Derived from autodockdev/maps.py
 	// -------------------------------------------------------------------
 	float4struct partial_gradient_inter = spatial_gradient(docking_params.fgrids, grid_ind_000+mul_tmp, dx,dy,dz, omdx,omdy,omdz);
-	atom_gradients(0,0,atom_id) += partial_gradient_inter.x;
-	atom_gradients(0,1,atom_id) += partial_gradient_inter.y;
-	atom_gradients(0,2,atom_id) += partial_gradient_inter.z;
+	atom_gradients(0,atom_id) = partial_gradient_inter.x;
+	atom_gradients(1,atom_id) = partial_gradient_inter.y;
+	atom_gradients(2,atom_id) = partial_gradient_inter.z;
 
 	// -------------------------------------------------------------------
 	// Calculating gradients (forces) corresponding to
@@ -152,9 +152,9 @@ KOKKOS_INLINE_FUNCTION float calc_intermolecular_gradients(const int atom_id, co
 	// Calculating affinity energy
 	partial_energy += q * trilinear_interp(docking_params.fgrids, grid_ind_000+mul_tmp, weights);
 	partial_gradient_inter = spatial_gradient(docking_params.fgrids, grid_ind_000+mul_tmp, dx,dy,dz, omdx,omdy,omdz);
-	atom_gradients(0,0,atom_id) += q * partial_gradient_inter.x;
-	atom_gradients(0,1,atom_id) += q * partial_gradient_inter.y;
-	atom_gradients(0,2,atom_id) += q * partial_gradient_inter.z;
+	atom_gradients(0,atom_id) += q * partial_gradient_inter.x;
+	atom_gradients(1,atom_id) += q * partial_gradient_inter.y;
+	atom_gradients(2,atom_id) += q * partial_gradient_inter.z;
 
 	// -------------------------------------------------------------------
 	// Calculating gradients (forces) corresponding to
@@ -169,9 +169,9 @@ KOKKOS_INLINE_FUNCTION float calc_intermolecular_gradients(const int atom_id, co
 	// Calculating affinity energy
 	partial_energy += q * trilinear_interp(docking_params.fgrids, grid_ind_000+mul_tmp, weights);
 	partial_gradient_inter = spatial_gradient(docking_params.fgrids, grid_ind_000+mul_tmp, dx,dy,dz, omdx,omdy,omdz);
-	atom_gradients(0,0,atom_id) += q * partial_gradient_inter.x;
-	atom_gradients(0,1,atom_id) += q * partial_gradient_inter.y;
-	atom_gradients(0,2,atom_id) += q * partial_gradient_inter.z;
+	atom_gradients(0,atom_id) += q * partial_gradient_inter.x;
+	atom_gradients(1,atom_id) += q * partial_gradient_inter.y;
+	atom_gradients(2,atom_id) += q * partial_gradient_inter.z;
 
 	return partial_energy;
 }
@@ -291,13 +291,13 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_gradients(const int contributor
 	// Calculating gradients in xyz components.
 	// Gradients for both atoms in a single contributor pair
 	// have the same magnitude, but opposite directions
-	Kokkos::atomic_add(&(atom_gradients(0,0,atom1_id)), -priv_intra_gradient_x);
-	Kokkos::atomic_add(&(atom_gradients(0,1,atom1_id)), -priv_intra_gradient_y);
-	Kokkos::atomic_add(&(atom_gradients(0,2,atom1_id)), -priv_intra_gradient_z);
+	Kokkos::atomic_add(&(atom_gradients(0,atom1_id)), -priv_intra_gradient_x);
+	Kokkos::atomic_add(&(atom_gradients(1,atom1_id)), -priv_intra_gradient_y);
+	Kokkos::atomic_add(&(atom_gradients(2,atom1_id)), -priv_intra_gradient_z);
 
-	Kokkos::atomic_add(&(atom_gradients(0,0,atom2_id)), priv_intra_gradient_x);
-	Kokkos::atomic_add(&(atom_gradients(0,1,atom2_id)), priv_intra_gradient_y);
-	Kokkos::atomic_add(&(atom_gradients(0,2,atom2_id)), priv_intra_gradient_z);
+	Kokkos::atomic_add(&(atom_gradients(0,atom2_id)), priv_intra_gradient_x);
+	Kokkos::atomic_add(&(atom_gradients(1,atom2_id)), priv_intra_gradient_y);
+	Kokkos::atomic_add(&(atom_gradients(2,atom2_id)), priv_intra_gradient_z);
 
 	return partial_energy;
 }
@@ -305,14 +305,15 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_gradients(const int contributor
 template<class Device>
 KOKKOS_INLINE_FUNCTION void reduce_translation_gradients(const member_type& team_member, const DockingParams<Device>& docking_params, AtomGradients atom_gradients, GenotypeAux gradient)
 {
+	int tidx = team_member.team_rank();
 	float gradient0, gradient1, gradient2;
         // loop over atoms and parallel reduce to assign each gradient
 	Kokkos::parallel_reduce (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-		[=] (int& idx, float& gradient0) { gradient0 += atom_gradients(0,0,idx); }, gradient0);
+		[=] (int& idx, float& gradient0) { gradient0 += atom_gradients(0,idx); }, gradient0);
 	Kokkos::parallel_reduce (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-		[=] (int& idx, float& gradient0) { gradient0 += atom_gradients(0,1,idx); }, gradient1);
+		[=] (int& idx, float& gradient0) { gradient0 += atom_gradients(1,idx); }, gradient1);
 	Kokkos::parallel_reduce (Kokkos::TeamThreadRange (team_member, (int)(docking_params.num_of_atoms)),
-		[=] (int& idx, float& gradient0) { gradient0 += atom_gradients(0,2,idx); }, gradient2);
+		[=] (int& idx, float& gradient0) { gradient0 += atom_gradients(2,idx); }, gradient2);
 
         if (tidx == 0) {
                 gradient[0] = gradient0;
@@ -342,15 +343,15 @@ KOKKOS_INLINE_FUNCTION void calc_rotation_gradients(const member_type& team_memb
                 float4struct r = calc_coords[atom_cnt] - genrot_movingvec;
                 // Re-using "gradient_inter_*" for total gradient (inter+intra)
                 float4struct force;
-                force.x = atom_gradients(0,0,atom_cnt);
-                force.y = atom_gradients(0,1,atom_cnt);
-                force.z = atom_gradients(0,2,atom_cnt);
+                force.x = atom_gradients(0,atom_cnt);
+                force.y = atom_gradients(1,atom_cnt);
+                force.z = atom_gradients(2,atom_cnt);
                 force.w = 0.0;
                 float4struct torque_rot = quaternion_cross(r, force);
 		// Overwrite gradients after using them
-                atom_gradients(0,0,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(0,0,tidx)) + torque_rot.x;
-                atom_gradients(0,1,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(0,1,tidx)) + torque_rot.y;
-                atom_gradients(0,2,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(0,2,tidx)) + torque_rot.z;
+                atom_gradients(0,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(0,tidx)) + torque_rot.x;
+                atom_gradients(1,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(1,tidx)) + torque_rot.y;
+                atom_gradients(2,tidx) += (float)(atom_cnt==tidx)*(-atom_gradients(2,tidx)) + torque_rot.z;
         }
         // do a reduction over the total gradient containing prepared "gradient_intra_*" values
         for (int off=(team_member.team_size())>>1; off>0; off >>= 1)
@@ -358,16 +359,16 @@ KOKKOS_INLINE_FUNCTION void calc_rotation_gradients(const member_type& team_memb
                 team_member.team_barrier();
                 if (tidx < off)
                 {
-                        atom_gradients(0,0,tidx) += atom_gradients(0,0,tidx+off);
-                        atom_gradients(0,1,tidx) += atom_gradients(0,1,tidx+off);
-                        atom_gradients(0,2,tidx) += atom_gradients(0,2,tidx+off);
+                        atom_gradients(0,tidx) += atom_gradients(0,tidx+off);
+                        atom_gradients(1,tidx) += atom_gradients(1,tidx+off);
+                        atom_gradients(2,tidx) += atom_gradients(2,tidx+off);
                 }
         }
         if (tidx == 0) {
                 float4struct torque_rot;
-                torque_rot.x = atom_gradients(0,0,0);
-                torque_rot.y = atom_gradients(0,1,0);
-                torque_rot.z = atom_gradients(0,2,0);
+                torque_rot.x = atom_gradients(0,0);
+                torque_rot.y = atom_gradients(1,0);
+                torque_rot.z = atom_gradients(2,0);
 
                 // Derived from rotation.py/axisangle_to_q()
                 // genes[3:7] = rotation.axisangle_to_q(torque, rad)
@@ -558,9 +559,9 @@ int tidx = team_member.team_rank();
 
                 // Re-using "gradient_inter_*" for total gradient (inter+intra)
 		float4struct atom_force;
-                atom_force.x = atom_gradients(0,0,lig_atom_id);
-                atom_force.y = atom_gradients(0,1,lig_atom_id);
-                atom_force.z = atom_gradients(0,2,lig_atom_id);
+                atom_force.x = atom_gradients(0,lig_atom_id);
+                atom_force.y = atom_gradients(1,lig_atom_id);
+                atom_force.z = atom_gradients(2,lig_atom_id);
                 atom_force.w = 0.0f;
 
                 float4struct torque_tor = quaternion_cross(r, atom_force);
@@ -584,14 +585,6 @@ KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const 
         int run_id = lidx / docking_params.num_of_lsentities;
 
         team_member.team_barrier();
-
-	// Initializing gradients (forces) 
-        // Derived from autodockdev/maps.py
-        for (int atom_id = tidx; atom_id < MAX_NUM_OF_ATOMS; atom_id+= team_member.team_size()) {
-                atom_gradients(0,0,atom_id) = 0.0f;
-                atom_gradients(0,1,atom_id) = 0.0f;
-                atom_gradients(0,2,atom_id) = 0.0f;
-        }
 
 	// Initializing gradient genotypes
         for (int gene_cnt = tidx; gene_cnt < docking_params.num_of_genes; gene_cnt+= team_member.team_size()) {
