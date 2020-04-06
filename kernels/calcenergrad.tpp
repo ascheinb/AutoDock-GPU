@@ -75,6 +75,10 @@ KOKKOS_INLINE_FUNCTION float calc_intermolecular_gradients(const int idx, const 
 		docking_params.atom_gradients(idx,0,atom_id) = 42.0f * x;
 		docking_params.atom_gradients(idx,1,atom_id) = 42.0f * y;
 		docking_params.atom_gradients(idx,2,atom_id) = 42.0f * z;
+
+		gradient[0] += 42.0f * x;
+		gradient[1] += 42.0f * y;
+		gradient[2] += 42.0f * z;
 		return partial_energy;
 	}
 	// Getting coordinates

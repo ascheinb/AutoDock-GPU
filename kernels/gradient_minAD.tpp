@@ -62,7 +62,7 @@ void gradient_minAD(Generation<Device>& next, Dockpars* mypars,DockingParams<Dev
 		// (IEEE-754 single float has a precision of about 6 decimal digits)
 		do {
 			// Calculating energy & gradient
-			calc_energrad(run_id, docking_params, genotype, consts,
+			calc_energrad(idx, docking_params, genotype, consts,
 					     energy, gradient);
 
 			if (energy < best_energy) energy_improved=true;
