@@ -32,20 +32,18 @@ int get_filelist(const int* argc,
 //The function checks if a filelist has been provided according to the proper command line arguments.
 //If it is, it loads the .fld, .pdbqt, and resname files into vectors
 {
-	char filename [128];
-
         for (int i=1; i<(*argc)-1; i++)
         {
                 //Argument: file name that contains list of files.
                 if (strcmp("-filelist", argv[i]) == 0)
                 {
                         filelist.used = true;
-                        strcpy(filename, argv[i+1]);
+                        strcpy(filelist.filename, argv[i+1]);
                 }
         }
 
 	if (filelist.used){
-		std::ifstream file(filename);
+		std::ifstream file(filelist.filename);
 		std::string line;
 		bool prev_line_was_fld=false;
 		while(std::getline(file, line)) {

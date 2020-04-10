@@ -34,6 +34,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 //#include <math.h>
 #include <Kokkos_Core.hpp>
 #include "kokkos_settings.hpp"
+#include "profile.hpp"
 
 #include "processgrid.h"
 #include "miscellaneous.h"
@@ -65,6 +66,7 @@ int docking_with_gpu(const Gridinfo*		mygrid,
 			   Dockpars*		mypars,
 		     const Liganddata*		myligand_init,
 		     const Liganddata*		myxrayligand,
+			   Profile&             profile,
 		     const int*			argc,
 		     char**			argv);
 

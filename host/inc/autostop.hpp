@@ -182,6 +182,10 @@ class AutoStop{
 		fflush(stdout);
 	}
 
+	inline bool did_stop(){
+		return autostopped;
+	}
+
 };
 
 #endif

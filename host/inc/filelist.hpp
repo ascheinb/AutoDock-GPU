@@ -10,6 +10,7 @@ class FileList{
 	public:
 
 	bool used;
+	char filename [128];
 	int nfiles;
 	std::vector<std::string> resnames;
 	std::vector<std::string> fld_files;

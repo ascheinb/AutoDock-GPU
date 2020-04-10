@@ -41,6 +41,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 #include "performdocking.h"
 #include "filelist.hpp"
 #include "setup.hpp"
+#include "profile.hpp"
 
 #ifndef _WIN32
 // ------------------------
@@ -75,6 +76,7 @@ int main(int argc, char* argv[])
 	gettimeofday(&time_start,NULL);
 	double exec_time, setup_time;
 	double total_savings=0;
+	double total_could_save=0;
 #endif
 
 	// Objects that are arguments of docking_with_gpu
@@ -100,6 +102,9 @@ int main(int argc, char* argv[])
 		execution_thread = 1; // Assign Thread 1 to do the execution
 #endif
 	}
+
+	// Set up run profiles for timing
+	std::vector<Profile> profiles;
 
 	// Print version info
 	printf("\nAutoDock-GPU version: %s\n", VERSION);
@@ -155,8 +160,10 @@ int main(int argc, char* argv[])
 
 			// Do the execution on thread 1, except on the first iteration since nothing is loaded yet
 			if ((thread_id==execution_thread) && i_file>0) {
+				Profile newprofile(i_file-1);
+				profiles.push_back(newprofile);
 				// Starting Docking
-				if (docking_with_gpu(&(mygrid[r_id]), floatgrids[r_id], &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), &argc, argv) != 0)
+				if (docking_with_gpu(&(mygrid[r_id]), floatgrids[r_id], &(mypars[r_id]), &(myligand_init[r_id]), &(myxrayligand[r_id]), profiles[i_file-1], &argc, argv) != 0)
 					{printf("\n\nError in docking_with_gpu, stopped job."); err = 1;}
 
 			}
@@ -176,6 +183,12 @@ int main(int argc, char* argv[])
 			double savings = overlap ? (setup_time + exec_time - loop_time) : 0;
 			total_savings += savings;
 			printf("Savings from overlap: %.3f sec \n", savings);
+			double could_save = setup_time-exec_time;
+			if (could_save>0) {
+				printf("WARNING: Setup time exceeded exec time by %.3f sec - consider adding a second a pipeline\n", could_save);
+				total_could_save += could_save;
+			}
+			printf("Cumulative savings: %.3f sec; Cumulative potential additional savings: %.3f sec", total_savings, total_could_save);
 		}
 
 		if (i_file>0){
@@ -186,6 +199,10 @@ int main(int argc, char* argv[])
 			FILE* fp = fopen(report_file_name, "a");
 			fprintf(fp, "\n\n\nRun time %.3f sec\n", loop_time);
 			fclose(fp);
+
+			// Detailed timing information to .timing
+			profiles[i_file-1].exec_time = exec_time;
+			profiles[i_file-1].write_to_file(filelist.filename);
 		}
 #endif
 		if (err==1) return 1;

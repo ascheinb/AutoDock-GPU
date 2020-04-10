@@ -57,6 +57,7 @@ int docking_with_gpu(const Gridinfo*		mygrid,
                            Dockpars*		mypars,
 		     const Liganddata*		myligand_init,
 		     const Liganddata*		myxrayligand,
+                           Profile&             profile,
 		     const int*			argc,
 			   char**		argv)
 /* The function performs the docking algorithm and generates the corresponding result files.
@@ -150,17 +151,25 @@ parameters argc and argv:
 		if (mypars->num_of_energy_evals>mypars->max_num_of_energy_evals){
 			printf("Overriding heuristics, setting -nev to -maxnev ( = %u) instead.\n",mypars->max_num_of_energy_evals);
 			mypars->num_of_energy_evals = mypars->max_num_of_energy_evals;
+			profile.capped = true;
 		}
 	}
 
 	// Input check
 	if (strcmp(mypars->ls_method, "ad") == 0){
 		printf("\nUsing ADADELTA scheme.\n");
+		profile.adadelta=true;
 	} else if (strcmp(mypars->ls_method, "sw") == 0) {
 		printf("\nUsing Solis-Wets scheme.\n");
+		profile.adadelta=false;
 	} else {
                 printf("\nOnly ADADELTA or Solis-Wets schemes available. Please set -lsmet ad or sw \n\n"); return 1;
         }
+
+	// Get profile for timing
+        profile.n_evals = mypars->num_of_energy_evals;
+        profile.num_atoms = docking_params.num_of_atoms;
+        profile.num_rotbonds = myligand_init->num_of_rotbonds;
 
 	//----------------------------- EXECUTION ------------------------------------//
         printf("\nExecution starts:\n\n");
@@ -286,6 +295,10 @@ parameters argc and argv:
 		Kokkos::deep_copy(populations_h,even_generation.conformations);
 		Kokkos::deep_copy(energies_h,even_generation.energies);
 	}
+
+	// Profiler
+	profile.nev_at_stop = total_evals/mypars->num_of_runs;
+	profile.autostopped = autostop.did_stop();
 
 	// Final autostop statistics output
 	if (mypars->autostop) autostop.output_final_stddev(generation_cnt, energies_h.data(), total_evals);
