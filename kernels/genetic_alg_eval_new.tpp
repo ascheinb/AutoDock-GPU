@@ -10,7 +10,7 @@ void gen_alg_eval_new(Generation<Device>& current, Generation<Device>& next, Doc
         int league_size = mypars->pop_size * mypars->num_of_runs;
 
 	// Get the size of the shared memory allocation
-        size_t shmem_size = Coordinates::shmem_size() + Genotype::shmem_size() + TeamFloat::shmem_size() + TeamInt::shmem_size()
+        size_t shmem_size = Coordinates::shmem_size(docking_params.num_of_atoms) + Genotype::shmem_size(docking_params.num_of_genes) + TeamFloat::shmem_size() + TeamInt::shmem_size()
 			  + 2*TwoInt::shmem_size() + TenFloat::shmem_size() + FourInt::shmem_size() + FourFloat::shmem_size();
 	Kokkos::parallel_for (Kokkos::TeamPolicy<ExSpace> (league_size, NUM_OF_THREADS_PER_BLOCK ).
                               set_scratch_size(KOKKOS_TEAM_SCRATCH_OPT,Kokkos::PerTeam(shmem_size)),
@@ -25,7 +25,7 @@ void gen_alg_eval_new(Generation<Device>& current, Generation<Device>& next, Doc
 			perform_elitist_selection(team_member, current, next, docking_params);
 		}else{
 			// Some local arrays
-			Genotype offspring_genotype(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+			Genotype offspring_genotype(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_genes);
 			TenFloat randnums(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
 			FourInt parent_candidates(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
 			FourFloat candidate_energies(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
@@ -82,7 +82,7 @@ void gen_alg_eval_new(Generation<Device>& current, Generation<Device>& next, Doc
 			team_member.team_barrier();
 
 			// Have to declare this outside calc_energy since Solis-Wets has energy calc in a loop
-			Coordinates calc_coords(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+			Coordinates calc_coords(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_atoms);
 
 			// Get the current energy for each run
 			float energy = calc_energy(team_member, docking_params, consts, calc_coords, offspring_genotype, run_id);

@@ -10,8 +10,8 @@ void gradient_minAD(Generation<Device>& next, Dockpars* mypars,DockingParams<Dev
         int league_size = docking_params.num_of_lsentities * mypars->num_of_runs;
 
 	// Get the size of the shared memory allocation
-        size_t shmem_size = Coordinates::shmem_size() + 2*Genotype::shmem_size() + 3*GenotypeAux::shmem_size()
-			  + OneInt::shmem_size() + 2*OneBool::shmem_size() + AtomGradients::shmem_size();
+        size_t shmem_size = Coordinates::shmem_size(docking_params.num_of_atoms) + 2*Genotype::shmem_size(docking_params.num_of_genes) + 3*GenotypeAux::shmem_size(docking_params.num_of_genes)
+			  + OneInt::shmem_size() + 2*OneBool::shmem_size() + AtomGradients::shmem_size(3,MAX_NUM_OF_ATOMS);
 	Kokkos::parallel_for (Kokkos::TeamPolicy<ExSpace,Kokkos::LaunchBounds<NUM_OF_THREADS_PER_BLOCK,8>> (league_size, NUM_OF_THREADS_PER_BLOCK ).
                               set_scratch_size(KOKKOS_TEAM_SCRATCH_OPT,Kokkos::PerTeam(shmem_size)),
                         KOKKOS_LAMBDA (member_type team_member)
@@ -52,7 +52,7 @@ void gradient_minAD(Generation<Device>& next, Dockpars* mypars,DockingParams<Dev
 		team_member.team_barrier();
 
 		// Copy genotype to local shared memory
-                Genotype genotype(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+                Genotype genotype(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_genes);
 		copy_genotype(team_member, docking_params.num_of_genes, genotype, next, gpop_idx(0));
 
 		team_member.team_barrier();
@@ -60,12 +60,12 @@ void gradient_minAD(Generation<Device>& next, Dockpars* mypars,DockingParams<Dev
 		// Initializing best genotype and energy
 		float energy; // Dont need to init this since it's overwritten
 		float best_energy = INFINITY;
-		Genotype best_genotype(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+		Genotype best_genotype(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_genes);
                 copy_genotype(team_member, docking_params.num_of_genes, best_genotype, genotype);
 
 		// Initializing variable arrays for gradient descent
-		GenotypeAux square_gradient(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
-		GenotypeAux square_delta(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+		GenotypeAux square_gradient(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_genes);
+		GenotypeAux square_delta(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_genes);
 		for(int i = tidx; i < ACTUAL_GENOTYPE_LENGTH; i+= team_member.team_size()) {
                         square_gradient[i]=0; // Probably unnecessary since kokkos views are automatically initialized to 0 (not sure if that's the case in scratch though)
 			square_delta[i]=0;
@@ -89,11 +89,11 @@ void gradient_minAD(Generation<Device>& next, Dockpars* mypars,DockingParams<Dev
 
 		// Declare/allocate coordinates/atom_gradients for internal use by calc_energrad only. Must be outside of loop since there is
 		// no way to de/reallocate things in Kokkos team scratch
-		Coordinates calc_coords(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
-		AtomGradients atom_gradients(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+		Coordinates calc_coords(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_atoms);
+		AtomGradients atom_gradients(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),3,MAX_NUM_OF_ATOMS);
 
 		// Perform adadelta iterations on gradient
-		GenotypeAux gradient(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+		GenotypeAux gradient(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_genes);
 		// The termination criteria is based on
 		// a maximum number of iterations, and
 		// the minimum step size allowed for single-floating point numbers

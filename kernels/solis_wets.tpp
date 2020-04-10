@@ -9,7 +9,7 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
         int league_size = docking_params.num_of_lsentities * mypars->num_of_runs;
 
 	// Get the size of the shared memory allocation
-        size_t shmem_size = Coordinates::shmem_size() + 2*Genotype::shmem_size() + 2*GenotypeAux::shmem_size()
+        size_t shmem_size = Coordinates::shmem_size(docking_params.num_of_atoms) + 2*Genotype::shmem_size(docking_params.num_of_genes) + 2*GenotypeAux::shmem_size(docking_params.num_of_genes)
 			  + OneInt::shmem_size() + 2*OneBool::shmem_size();
 	Kokkos::parallel_for (Kokkos::TeamPolicy<ExSpace> (league_size, NUM_OF_THREADS_PER_BLOCK ).
                               set_scratch_size(KOKKOS_TEAM_SCRATCH_OPT,Kokkos::PerTeam(shmem_size)),
@@ -44,7 +44,7 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 		team_member.team_barrier();
 
 		// Copy genotype to local shared memory
-                Genotype genotype(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+                Genotype genotype(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_genes);
 		copy_genotype(team_member, docking_params.num_of_genes, genotype, next, gpop_idx(0));
 
 		team_member.team_barrier();
@@ -52,12 +52,12 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 		// Initializing best genotype and energy
 		float energy = next.energies(gpop_idx(0)); // Dont need to init this since it's overwritten
 		float best_energy = energy;
-		Genotype best_genotype(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+		Genotype best_genotype(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_genes);
                 copy_genotype(team_member, docking_params.num_of_genes, best_genotype, genotype);
 
 		// Initializing variable arrays for solis-wets algorithm
-		GenotypeAux genotype_bias(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
-		GenotypeAux genotype_deviate(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+		GenotypeAux genotype_bias(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_genes);
+		GenotypeAux genotype_deviate(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_genes);
 		for(int i = tidx; i < ACTUAL_GENOTYPE_LENGTH; i+= team_size) {
                         genotype_bias[i]=0; // Probably unnecessary since kokkos views are automatically initialized to 0 (not sure if that's the case in scratch though)
                 }
@@ -78,7 +78,7 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 
 		// Declare/allocate coordinates for internal use by calc_energy only. Must be outside of loop since there is
 		// no way to de/reallocate things in Kokkos team scratch
-		Coordinates calc_coords(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+		Coordinates calc_coords(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_atoms);
 		while (stay_in_loop(0)){
 			// New random deviate
 			float good_dir = 1.0f;
