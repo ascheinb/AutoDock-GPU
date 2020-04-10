@@ -82,7 +82,7 @@ KOKKOS_INLINE_FUNCTION float4struct quaternion_rotate(const float4struct v, cons
 // TODO Is there a faster norm? - ALS
 KOKKOS_INLINE_FUNCTION float4struct quaternion_normalize(const float4struct v)
 {
-	float norm = 1.0f/sqrt(pow(v.x,2) + pow(v.y,2) + pow(v.z,2));
+	float norm = 1.0f/sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
         float4struct result;
         result.x = v.x*norm;
         result.y = v.y*norm;
@@ -98,7 +98,7 @@ KOKKOS_INLINE_FUNCTION float quaternion_dot(const float4struct a, const float4st
 
 KOKKOS_INLINE_FUNCTION float quaternion_length(const float4struct v)
 {
-        return sqrt(pow(v.x,2) + pow(v.y,2) + pow(v.z,2));
+        return sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
 }
 
 // trilinear interpolation
@@ -277,7 +277,7 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_energy(const int contributor_co
 	// Getting atom IDs
 	unsigned int atom1_id = intracontrib.intraE_contributors_const(3*contributor_counter);
 	unsigned int atom2_id = intracontrib.intraE_contributors_const(3*contributor_counter+1);
-	unsigned int hbond = (unsigned int)(intracontrib.intraE_contributors_const(3*contributor_counter+2) == 1);    // evaluates to 1 in case of H-bond, 0 otherwise
+	bool hbond = (intracontrib.intraE_contributors_const(3*contributor_counter+2) == 1);    // evaluates to 1 in case of H-bond, 0 otherwise
 
 	// Calculating vector components of vector going
 	// from first atom's to second atom's coordinates
@@ -305,7 +305,7 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_energy(const int contributor_co
 		//       (sum of the vdW radii of two like atoms (A)) in the case of vdW
 		// reqm_hbond: equilibrium internuclear separation
 		//       (sum of the vdW radii of two like atoms (A)) in the case of hbond 
-		float opt_distance = intra.reqm_const(atom1_type_vdw_hb+ATYPE_NUM*hbond) + intra.reqm_const(atom2_type_vdw_hb+ATYPE_NUM*hbond);
+		float opt_distance = intra.reqm_const(atom1_type_vdw_hb+ATYPE_NUM*(uint32_t)(hbond)) + intra.reqm_const(atom2_type_vdw_hb+ATYPE_NUM*(uint32_t)(hbond));
 		
 		// Getting smoothed distance
 		// smoothed_distance = function(atomic_distance, opt_distance)
@@ -319,8 +319,13 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_energy(const int contributor_co
 		}
 		// Calculating van der Waals / hydrogen bond term
 		unsigned int idx = atom1_typeid * dock_params.num_of_atypes + atom2_typeid;
-		partial_energy += (intra.VWpars_AC_const(idx) / pow(smoothed_distance,12)) -
-				  (intra.VWpars_BD_const(idx) / pow(smoothed_distance,6+4*hbond));
+		float s2 = smoothed_distance * smoothed_distance;
+		float s4 = s2 * s2;
+		float s6 = s2 * s4;
+		float s12 = s6 * s6;
+		float s6or10 = s6 * (hbond ? s4 : 1.0f);
+		partial_energy += (intra.VWpars_AC_const(idx) / s12) -
+				  (intra.VWpars_BD_const(idx) / s6or10);
 
 	} // if cuttoff1 - internuclear-distance at 8A
 

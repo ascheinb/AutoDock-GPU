@@ -189,7 +189,7 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_gradients(const int contributor
 	// Getting atom IDs
 	int atom1_id = intracontrib.intraE_contributors_const[3*contributor_counter];
 	int atom2_id = intracontrib.intraE_contributors_const[3*contributor_counter+1];
-	int hbond = (int)(intracontrib.intraE_contributors_const[3*contributor_counter+2] == 1);    // evaluates to 1 in case of H-bond, 0 otherwise
+	bool hbond = (intracontrib.intraE_contributors_const[3*contributor_counter+2] == 1);    // evaluates to 1 in case of H-bond, 0 otherwise
 
 	// Calculating vector components of vector going
 	// from first atom's to second atom's coordinates
@@ -231,7 +231,7 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_gradients(const int contributor
 		//       (sum of the vdW radii of two like atoms (A)) in the case of vdW
 		// reqm_hbond: equilibrium internuclear separation
 		//       (sum of the vdW radii of two like atoms (A)) in the case of hbond
-		float opt_distance = (intra.reqm_const [atom1_type_vdw_hb+ATYPE_NUM*hbond] + intra.reqm_const [atom2_type_vdw_hb+ATYPE_NUM*hbond]);
+		float opt_distance = (intra.reqm_const [atom1_type_vdw_hb+ATYPE_NUM*(uint32_t)(hbond)] + intra.reqm_const [atom2_type_vdw_hb+ATYPE_NUM*(uint32_t)(hbond)]);
 
 		// Getting smoothed distance
 		// smoothed_distance = function(atomic_distance, opt_distance)
@@ -243,10 +243,15 @@ KOKKOS_INLINE_FUNCTION float calc_intramolecular_gradients(const int contributor
 		// Calculating van der Waals / hydrogen bond term
 		int idx = atom1_typeid * docking_params.num_of_atypes + atom2_typeid;
 		float nvbond = 1.0 - vbond;
-		float A = nvbond * intra.VWpars_AC_const[idx] / pow(smoothed_distance,12);
-		float B = nvbond * intra.VWpars_BD_const[idx] / pow(smoothed_distance,6+4*hbond);
+		float s2 = smoothed_distance * smoothed_distance;
+		float s4 = s2 * s2;
+		float s6 = s2 * s4;
+		float s12 = s6 * s6;
+		float s6or10 = s6 * (hbond ? s4 : 1.0f);
+		float A = nvbond * intra.VWpars_AC_const[idx] / s12;
+		float B = nvbond * intra.VWpars_BD_const[idx] / s6or10;
 		partial_energy += A - B;
-		priv_gradient_per_intracontributor += ((6.0f+4.0f*hbond) * B - 12.0f * A) / smoothed_distance;
+		priv_gradient_per_intracontributor += ((6.0f+4.0f*(uint32_t)hbond) * B - 12.0f * A) / smoothed_distance;
 	} // if cuttoff1 - internuclear-distance at 8A
 
 	// Calculating energy contributions
