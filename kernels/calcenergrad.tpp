@@ -622,16 +622,15 @@ KOKKOS_INLINE_FUNCTION void calc_energrad(const member_type& team_member, const 
 	genrot_unitvec.y = s2*sin_angle*sin(phi);
 	genrot_unitvec.z = s2*cos(theta);
 	genrot_unitvec.w = cos(genrotangle*0.5f);
-	float sign_of_sin_theta = 1.0-2.0*(float)(sin_angle < 0.0f); // WTF - ALS
+	float sign_of_sin_theta = 1.0-2.0*(float)(sin_angle < 0.0f);
 
 	team_member.team_barrier();
 
-	// Loop over the rot bond list and carry out all the rotations
-	Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, docking_params.rotbondlist_length),
-	[=] (int& idx) {
+	// Loop over the rot bond list and carry out all the rotations (can't use parallel_for since order matters!)
+	for (int idx=team_member.team_rank();idx<docking_params.rotbondlist_length;idx+=NUM_OF_THREADS_PER_BLOCK){
 		rotate_atoms(idx, consts.conform, consts.rotlist, run_id, genotype, genrot_movingvec, genrot_unitvec, calc_coords);
 		team_member.team_barrier();
-	});
+	}
 
 	team_member.team_barrier();
 

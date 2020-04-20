@@ -152,7 +152,7 @@ KOKKOS_INLINE_FUNCTION void rotate_atoms(const int rotation_counter, const Confo
         if ((rotation_list_element & RLIST_DUMMY_MASK) == 0)    // If not dummy rotation
         {       
                 unsigned int atom_id = rotation_list_element & RLIST_ATOMID_MASK;
-                        
+
                 // Capturing atom coordinates
                 float4struct atom_to_rotate = calc_coords(atom_id);
                         
@@ -198,7 +198,7 @@ KOKKOS_INLINE_FUNCTION void rotate_atoms(const int rotation_counter, const Confo
                 
                 // Performing final movement and storing values
                 calc_coords(atom_id) = quaternion_rotate(atom_to_rotate,quatrot_left) + rotation_movingvec;
-                
+
         }
 }
 
@@ -400,12 +400,11 @@ KOKKOS_INLINE_FUNCTION float calc_energy(const member_type& team_member, const D
 
 	team_member.team_barrier();
 
-	// Loop over the rot bond list and carry out all the rotations
-	Kokkos::parallel_for (Kokkos::TeamThreadRange (team_member, docking_params.rotbondlist_length),
-			[=] (int& idx) {
+	// Loop over the rot bond list and carry out all the rotations (can't use parallel_for since order matters!)
+	for (int idx=team_member.team_rank();idx<docking_params.rotbondlist_length;idx+=NUM_OF_THREADS_PER_BLOCK){
 		rotate_atoms(idx, consts.conform, consts.rotlist, run_id, genotype, genrot_movingvec, genrot_unitvec, calc_coords);
 		team_member.team_barrier();
-	});
+	}
 
 	team_member.team_barrier();
 
