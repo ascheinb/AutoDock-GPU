@@ -10,7 +10,7 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 
 	// Get the size of the shared memory allocation
         size_t shmem_size = Coordinates::shmem_size(docking_params.num_of_atoms) + 2*Genotype::shmem_size(docking_params.num_of_genes) + 2*GenotypeAux::shmem_size(docking_params.num_of_genes)
-			  + OneInt::shmem_size() + 2*OneBool::shmem_size();
+			  + OneInt::shmem_size() + 2*OneBool::shmem_size() + OneFloat::shmem_size();
 	Kokkos::parallel_for (Kokkos::TeamPolicy<ExSpace> (league_size, NUM_OF_THREADS_PER_BLOCK ).
                               set_scratch_size(KOKKOS_TEAM_SCRATCH_OPT,Kokkos::PerTeam(shmem_size)),
                         KOKKOS_LAMBDA (member_type team_member)
@@ -58,7 +58,7 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 		// Initializing variable arrays for solis-wets algorithm
 		GenotypeAux genotype_bias(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_genes);
 		GenotypeAux genotype_deviate(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT),docking_params.num_of_genes);
-		for(int i = tidx; i < ACTUAL_GENOTYPE_LENGTH; i+= team_size) {
+		for(int i = tidx; i < docking_params.num_of_genes; i+= team_size) {
                         genotype_bias[i]=0; // Probably unnecessary since kokkos views are automatically initialized to 0 (not sure if that's the case in scratch though)
                 }
 
@@ -70,7 +70,8 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 		energy_improved(0)=false;
 		unsigned int iteration_cnt = 0;
 		int evaluation_cnt = 0;
-		float rho = 1.0f;
+		OneFloat rho(team_member.team_scratch(KOKKOS_TEAM_SCRATCH_OPT));
+		rho(0)  = 1.0f;
 		int   cons_succ = 0;
 		int   cons_fail = 0;
 
@@ -83,7 +84,7 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 			// New random deviate
 			float good_dir = 1.0f;
 			for (int gene_cnt = tidx; gene_cnt < docking_params.num_of_genes; gene_cnt+= team_size) {
-				genotype_deviate[gene_cnt] = rho*(2*rand_float(team_member, docking_params)-1);
+				genotype_deviate[gene_cnt] = rho(0)*(2*rand_float(team_member, docking_params)-1);
 
 				if (gene_cnt < 3) { // Translation genes
 					genotype_deviate[gene_cnt] *= docking_params.base_dmov_mul_sqrt3;
@@ -152,10 +153,10 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 			// Iteration controls
 			if (tidx == 0) {
 				if (cons_succ >= docking_params.cons_limit) {
-					rho *= LS_EXP_FACTOR;
+					rho(0) *= LS_EXP_FACTOR;
 					cons_succ = 0;
 				} else if (cons_fail >= docking_params.cons_limit) {
-					rho *= LS_CONT_FACTOR;
+					rho(0) *= LS_CONT_FACTOR;
 					cons_fail = 0;
 				}
 
@@ -163,7 +164,7 @@ void solis_wets(Generation<Device>& next, Dockpars* mypars,DockingParams<Device>
 				iteration_cnt = iteration_cnt + 1;
 				energy_improved(0)=false; // reset to zero for next loop iteration
 
-				if ((iteration_cnt >= docking_params.max_num_of_iters) || (rho <= docking_params.rho_lower_bound))
+				if ((iteration_cnt >= docking_params.max_num_of_iters) || (rho(0) <= docking_params.rho_lower_bound))
 					stay_in_loop(0)=false;
 			}
 
