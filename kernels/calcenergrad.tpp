@@ -362,7 +362,7 @@ KOKKOS_INLINE_FUNCTION void calc_rotation_gradients(const member_type& team_memb
         for (int off=(team_member.team_size())>>1; off>0; off >>= 1)
         {
                 team_member.team_barrier();
-                if (tidx < off)
+                if (tidx < off && tidx+off<docking_params.num_of_atoms)
                 {
                         atom_gradients(0,tidx) += atom_gradients(0,tidx+off);
                         atom_gradients(1,tidx) += atom_gradients(1,tidx+off);
