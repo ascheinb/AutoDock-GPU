@@ -25,6 +25,7 @@ typedef Kokkos::View<bool[1],ScratchSpace, Kokkos::MemoryTraits<Kokkos::Unmanage
 typedef Kokkos::View<int[1],ScratchSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> OneInt;
 typedef Kokkos::View<int[2],ScratchSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> TwoInt;
 typedef Kokkos::View<int[4],ScratchSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> FourInt;
+typedef Kokkos::View<float[1],ScratchSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> OneFloat;
 typedef Kokkos::View<float[4],ScratchSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> FourFloat;
 typedef Kokkos::View<float[10],ScratchSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> TenFloat;
 
